@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const { diagnoseCircuit } = require('./rules');
 const { diagnoseAndVerify } = require('./reasoning/diagnoseAndVerify');
 const { answerChatMessage, answerVoiceMessage, createVoiceReplyAudio, appendChatTurn, fallbackResponse } = require('./server/chat');
+const { createCommit, listCommits, getCommit, summarizeCommit } = require('./commits');
 
 const PORT = Number(process.env.PORT || 3001);
 const REASONING_DEBOUNCE_MS = 1200;
@@ -171,6 +172,80 @@ io.on('connection', (socket) => {
       sessions.set(sessionId, { circuit: null, updatedAt: null, intent, latestResult: null, chatHistory: [] });
     }
     console.log(`[intent] ${sessionId} (${socket.id}): ${intent ? `"${intent}"` : '(cleared)'}`);
+  });
+
+  // --- Version control -----------------------------------------------------
+  // A commit snapshots whatever circuit is currently mirrored for the session
+  // (streamed live from the Quest, including each component's position and
+  // rotation). Unlike `sessions`, commit history is written to disk so it
+  // survives a server restart — it is the actual "version control" data.
+
+  socket.on('commit:create', (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    const session = sessionId ? sessions.get(sessionId) : null;
+    if (!sessionId) {
+      socket.emit('commit:error', { message: 'A valid sessionId is required.' });
+      return;
+    }
+    if (!session?.circuit || !Array.isArray(session.circuit.components) || session.circuit.components.length === 0) {
+      socket.emit('commit:error', { message: 'Nothing to commit yet — build something on the Quest first.' });
+      return;
+    }
+    try {
+      const commit = createCommit(sessionId, {
+        message: payload.message,
+        author: payload.author,
+        circuit: session.circuit,
+      });
+      console.log(`[commit] ${sessionId}: created ${commit.id} "${commit.message}" (${commit.circuit.components.length} components)`);
+      io.to(sessionId).emit('commit:created', { commit: summarizeCommit(commit) });
+      io.to(sessionId).emit('commit:list', { sessionId, commits: listCommits(sessionId) });
+    } catch (error) {
+      console.error(`[commit] ${sessionId}: create failed: ${error.message}`);
+      socket.emit('commit:error', { message: 'Could not create the commit.' });
+    }
+  });
+
+  socket.on('commit:list', (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    if (!sessionId) {
+      socket.emit('commit:error', { message: 'A valid sessionId is required.' });
+      return;
+    }
+    socket.emit('commit:list', { sessionId, commits: listCommits(sessionId) });
+  });
+
+  socket.on('commit:load', (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    const commitId = typeof payload.commitId === 'string' ? payload.commitId : null;
+    if (!sessionId || !commitId) {
+      socket.emit('commit:error', { message: 'commit:load needs a sessionId and commitId.' });
+      return;
+    }
+    const commit = getCommit(sessionId, commitId);
+    if (!commit) {
+      socket.emit('commit:error', { message: `Commit ${commitId} was not found.` });
+      return;
+    }
+
+    const previous = sessions.get(sessionId);
+    const revision = (previous?.revision || 0) + 1;
+    sessions.set(sessionId, {
+      ...previous,
+      circuit: commit.circuit,
+      updatedAt: new Date().toISOString(),
+      revision,
+      intent: previous?.intent || '',
+      latestResult: null,
+      chatHistory: previous?.chatHistory || [],
+    });
+
+    console.log(`[commit] ${sessionId}: loading ${commit.id} "${commit.message}" onto the room`);
+    // The Quest and any dashboard mirror both live in this room, so restoring
+    // is a broadcast: the headset rebuilds the physical layout, the dashboard
+    // updates its mirror.
+    io.to(sessionId).emit('commit:restore', { sessionId, commit: summarizeCommit(commit), circuit: commit.circuit });
+    reasoningDebouncer.schedule(sessionId, revision);
   });
 
   socket.on('chat:message', async (payload = {}) => {

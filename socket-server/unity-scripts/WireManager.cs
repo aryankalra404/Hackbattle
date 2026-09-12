@@ -114,15 +114,37 @@ public class WireManager : MonoBehaviour
     {
         foreach (var wire in activeWires)
         {
-            if (wire != null)
-            {
-                if (Application.isPlaying)
-                    Destroy(wire.gameObject);
-                else
-                    DestroyImmediate(wire.gameObject);
-            }
+            if (wire == null) continue;
+
+            // Unplug both ends first so PinPoint occupancy and CircuitGraph
+            // connections are cleaned up through the normal path, rather than
+            // destroying the wire out from under them and leaving stale state.
+            if (wire.plugA != null) wire.plugA.Unplug();
+            if (wire.plugB != null) wire.plugB.Unplug();
+
+            // Immediate, not deferred: a restore respawns components and
+            // wires with the same ids in the same frame, and a stale
+            // not-yet-destroyed object would shadow the replacement in a
+            // FindObjectsByType lookup taken later in that same frame.
+            DestroyImmediate(wire.gameObject);
         }
         activeWires.Clear();
+    }
+
+    /// <summary>
+    /// Restore path: spawn a jumper wire and plug both ends directly into the
+    /// given pins, without needing a hand to drag it into the snap radius.
+    /// </summary>
+    public JumperWire SpawnWireBetween(PinPoint a, PinPoint b, Color color)
+    {
+        if (a == null || b == null) return null;
+        Vector3 midpoint = Vector3.Lerp(a.transform.position, b.transform.position, 0.5f);
+        JumperWire wire = SpawnWireAt(midpoint, color);
+        if (wire == null) return null;
+
+        if (wire.plugA != null) wire.plugA.PlugInto(a);
+        if (wire.plugB != null) wire.plugB.PlugInto(b);
+        return wire;
     }
 
     // Stub method for backwards compatibility with WirePinInteractable

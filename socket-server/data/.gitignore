@@ -1,0 +1,4 @@
+# Commit history is local demo data, one JSON file per session.
+# It is real "version control" data (survives a server restart), but it is
+# personal build history rather than something to check in.
+commits/

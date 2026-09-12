@@ -68,7 +68,9 @@ describe('editor shell', () => {
     expect(screen.getByText(config.product.name)).toBeDefined();
     // The branch name appears in the switcher and the status bar.
     expect(screen.getAllByText(config.versionControl.defaultBranch).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Drag a part from the left/)).toBeDefined();
+    // The editor canvas is the Quest mirror, so the empty state is its own:
+    // with no bridge to talk to in a test run, it reports the disconnection.
+    expect(screen.getByText(/Not connected to the Quest bridge/)).toBeDefined();
   });
 
   it('adds a part when its palette chip is clicked, and runs checks on it', () => {
@@ -100,7 +102,8 @@ describe('editor shell', () => {
   it('never claims simulation or LLM checks passed', () => {
     render(<App />);
     fireEvent.click(screen.getByTitle(new RegExp(partLibrary.get('resistor').description, 'i')));
-    fireEvent.click(screen.getByRole('button', { name: /Commit/ }));
+    // The Quest panel has a Commit button of its own, so reach for the top bar's.
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: /Commit/ }));
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/sim pending/)).toBeDefined();

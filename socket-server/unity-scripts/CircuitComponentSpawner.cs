@@ -49,6 +49,91 @@ public class CircuitComponentSpawner : MonoBehaviour
         return instance;
     }
 
+    /// <summary>
+    /// Restore path: spawn a specific component type with an explicit id and
+    /// transform (a saved commit's position/rotation) instead of the next
+    /// auto-generated slot. Bumps this type's index bookkeeping so later live
+    /// spawns from the UI never reuse a restored id.
+    /// </summary>
+    public CircuitComponent SpawnWithIdentity(string typeName, string id, Vector3 position, Quaternion rotation)
+    {
+        CircuitComponent.ComponentType type;
+        if (!TryParseType(typeName, out type))
+        {
+            Debug.LogWarning($"[CircuitComponentSpawner] Unknown component type \"{typeName}\" during restore.");
+            return null;
+        }
+
+        CircuitComponent prefab = PrefabForType(type);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[CircuitComponentSpawner] No prefab assigned for type \"{typeName}\".");
+            return null;
+        }
+
+        CircuitComponent instance = Instantiate(prefab, position, rotation, componentParent);
+        instance.ConfigureIdentity(string.IsNullOrWhiteSpace(id) ? $"{TypePrefix(type)}-{GetNextIndex(type)}" : id);
+        ReserveIndexFor(type, instance.Id);
+
+        if (!instance.IsConfigured())
+        {
+            Debug.LogError($"[CircuitComponentSpawner] {instance.Id} is missing one or more terminal PinPoint assignments on its prefab.");
+        }
+        return instance;
+    }
+
+    /// <summary>
+    /// Restore path: destroy every spawned component and forget the index
+    /// bookkeeping, so the incoming commit's ids are the only ones in play.
+    /// </summary>
+    public void ClearAllComponents()
+    {
+        foreach (CircuitComponent component in Object.FindObjectsByType<CircuitComponent>(FindObjectsSortMode.None))
+        {
+            if (component == null) continue;
+            // Immediate, not deferred: a restore respawns the same ids/pins
+            // in the same frame, and a stale not-yet-destroyed object would
+            // shadow the replacement in a same-frame FindObjectsByType lookup.
+            DestroyImmediate(component.gameObject);
+        }
+        nextIndex.Clear();
+    }
+
+    private CircuitComponent PrefabForType(CircuitComponent.ComponentType type)
+    {
+        switch (type)
+        {
+            case CircuitComponent.ComponentType.Led: return ledPrefab;
+            case CircuitComponent.ComponentType.Resistor: return resistorPrefab;
+            case CircuitComponent.ComponentType.Pir: return pirPrefab;
+            default: return null;
+        }
+    }
+
+    private static bool TryParseType(string typeName, out CircuitComponent.ComponentType type)
+    {
+        switch ((typeName ?? "").Trim().ToLowerInvariant())
+        {
+            case "led": type = CircuitComponent.ComponentType.Led; return true;
+            case "resistor": type = CircuitComponent.ComponentType.Resistor; return true;
+            case "pir": type = CircuitComponent.ComponentType.Pir; return true;
+            default: type = CircuitComponent.ComponentType.Led; return false;
+        }
+    }
+
+    private void ReserveIndexFor(CircuitComponent.ComponentType type, string id)
+    {
+        string prefix = TypePrefix(type) + "-";
+        if (id == null || !id.StartsWith(prefix)) return;
+        int parsedIndex;
+        if (int.TryParse(id.Substring(prefix.Length), out parsedIndex))
+        {
+            int current;
+            nextIndex.TryGetValue(type, out current);
+            nextIndex[type] = Mathf.Max(current, parsedIndex);
+        }
+    }
+
     private int GetNextIndex(CircuitComponent.ComponentType type)
     {
         int highestKnownIndex;

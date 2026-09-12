@@ -322,15 +322,10 @@
 
 .workspace {
   display: grid;
-  grid-template-columns: var(--palette-col, var(--panel-w)) 1fr var(--inspector-w);
+  grid-template-columns: var(--panel-w) 1fr var(--inspector-w);
   gap: 10px;
   padding: 10px;
   min-height: 0;
-}
-
-/* Collapsing the palette only changes one track, so the canvas grows into it. */
-.workspace--palette-collapsed {
-  --palette-col: 42px;
 }
 
 .workspace--history {
@@ -726,11 +721,16 @@
 
 /* ---- right rail --------------------------------------------------------- */
 
+/* Parts moved here from the left rail; Inspector and Findings keep their spot. */
 .rightrail {
   display: grid;
-  grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.8fr);
   gap: 10px;
   min-height: 0;
+}
+
+.rightrail--palette-collapsed {
+  grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 0.8fr);
 }
 
 .inspector {
@@ -1500,4 +1500,121 @@
   .history {
     grid-template-columns: 1fr;
   }
+}
+
+/* Quest panel — left rail: connect, commit, and browse history for the
+   circuit being built live on the headset. Mirrors the .palette grid shape. */
+.quest-panel {
+  display: grid;
+  grid-template-rows: auto auto auto auto 1fr;
+  min-height: 0;
+}
+
+.quest-panel__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.quest-panel__error {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.quest-panel__commit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.quest-panel__message {
+  resize: vertical;
+  font: inherit;
+}
+
+.quest-panel__history-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 12px 4px;
+}
+
+.quest-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 12px;
+  min-height: 0;
+}
+
+.quest-commit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.quest-commit__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quest-commit__main .commit__message {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quest-commit__main .commit__meta {
+  font-size: 11px;
+  color: var(--fg-muted);
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Quest mirror canvas — same look as the build canvas, read-only. */
+.quest-canvas--offline {
+  opacity: 0.6;
+}
+
+/* Small, text-only — this is a live map, not a schematic. */
+.quest-node {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--part-accent, var(--border-strong));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.quest-node__id {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.quest-node__kind {
+  font-size: 10px;
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
