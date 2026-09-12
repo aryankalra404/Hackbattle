@@ -1,0 +1,62 @@
+id: pushbutton
+version: 1
+name: Pushbutton
+category: Input
+description: Momentary contact. Conducts only while held down.
+labelPrefix: SW
+source: >-
+  Omron B3F-1000 tactile switch datasheet: 50 mA at 24 V DC rated contact
+  current, 100 mOhm maximum contact resistance. Open-contact resistance is the
+  ideal-switch value used for simulation.
+
+pins:
+  - { id: a, name: A }
+  - { id: b, name: B }
+requiredPins: [a, b]
+
+params:
+  pressed:
+    type: boolean
+    label: Pressed
+    default: false
+    description: Held down. Toggled from the canvas.
+
+spice:
+  element: R
+  template: 'R{label} {pin.a} {pin.b} {model}'
+  modelParam: pressed
+  models:
+    'true': '0.1'
+    'false': '1e12'
+
+ratings:
+  - quantity: current
+    through: [a, b]
+    max: 0.05
+    unit: A
+    note: 50 mA rated contact current.
+  - quantity: voltage
+    across: [a, b]
+    max: 24
+    unit: V
+    note: 24 V DC rated contact voltage.
+
+states:
+  - state: pressed
+    when:
+      quantity: current
+      through: [a, b]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: released
+    otherwise: true
+
+visual:
+  symbol2d: symbols/pushbutton.svg
+  accent: '#0969da'
+  size: [2, 2]
+
+footprint:
+  breadboard:
+    pins:
+      a: [0, 0]
+      b: [2, 0]

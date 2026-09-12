@@ -1,0 +1,68 @@
+id: led-5mm
+version: 1
+name: LED (5mm)
+category: Output
+description: Lights when current flows anode to cathode. Needs a series resistor.
+labelPrefix: D
+source: >-
+  Kingbright WP7113 series 5 mm LED datasheet: 20 mA maximum continuous forward
+  current, 5 V maximum reverse voltage, typical forward voltage 2.0 V (red),
+  2.2 V (yellow), 2.2 V (green), 3.3 V (blue) at 20 mA. The .model cards below
+  are standard junction-diode fits to those forward-voltage points; they are
+  approximations of the datasheet VF-IF curve, not values printed in it.
+
+pins:
+  - { id: anode, name: Anode }
+  - { id: cathode, name: Cathode }
+requiredPins: [anode, cathode]
+polarized: { positive: anode, negative: cathode }
+
+params:
+  color:
+    type: enum
+    label: Colour
+    values: [red, yellow, green, blue]
+    default: red
+
+spice:
+  element: D
+  template: 'D{label} {pin.anode} {pin.cathode} {model}'
+  modelParam: color
+  models:
+    red: '.model LED_RED D(IS=1e-19 N=1.85 RS=3.0 CJO=30p BV=5 IBV=10u)'
+    yellow: '.model LED_YEL D(IS=1e-20 N=1.95 RS=3.0 CJO=30p BV=5 IBV=10u)'
+    green: '.model LED_GRN D(IS=1e-20 N=1.95 RS=3.0 CJO=30p BV=5 IBV=10u)'
+    blue: '.model LED_BLU D(IS=1e-25 N=2.35 RS=4.0 CJO=30p BV=5 IBV=10u)'
+
+ratings:
+  - quantity: current
+    through: [anode, cathode]
+    max: 0.02
+    unit: A
+    note: 20 mA maximum continuous forward current.
+  - quantity: reverse_voltage
+    across: [cathode, anode]
+    max: 5
+    unit: V
+    note: 5 V maximum reverse voltage.
+
+states:
+  - state: on
+    when:
+      quantity: current
+      through: [anode, cathode]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: off
+    otherwise: true
+
+visual:
+  symbol2d: symbols/led-5mm.svg
+  glowOnState: on
+  accent: '#1a7f37'
+  size: [2, 1]
+
+footprint:
+  breadboard:
+    pins:
+      anode: [0, 0]
+      cathode: [1, 0]

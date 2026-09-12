@@ -1,0 +1,91 @@
+id: timer-ne555
+version: 1
+name: 555 Timer
+category: Active
+description: Classic timer IC. Astable or monostable depending on how it is wired.
+labelPrefix: U
+source: >-
+  Texas Instruments NE555 precision timer datasheet (SLFS022): 4.5 V to 16 V
+  supply voltage, 200 mA maximum output current, 600 mW package dissipation, and
+  the internal architecture the subcircuit below models (three 5 kOhm divider
+  resistors, two comparators at 2/3 and 1/3 VCC, an SR latch, a discharge
+  transistor and a push-pull output). The subcircuit is a behavioural model of
+  that architecture, not a vendor-supplied SPICE model.
+
+pins:
+  - { id: gnd, name: GND, role: ground }
+  - { id: trigger, name: Trigger, role: input }
+  - { id: output, name: Output, role: output }
+  - { id: reset, name: Reset, role: input }
+  - { id: control, name: Control, role: input }
+  - { id: threshold, name: Threshold, role: input }
+  - { id: discharge, name: Discharge }
+  - { id: vcc, name: VCC, role: power }
+requiredPins: [gnd, vcc, trigger, threshold, output]
+
+params: {}
+
+spice:
+  element: X
+  template: >-
+    X{label} {pin.gnd} {pin.trigger} {pin.output} {pin.reset} {pin.control}
+    {pin.threshold} {pin.discharge} {pin.vcc} NE555
+  subcircuit: |
+    .subckt NE555 gnd trig out reset ctrl thres disch vcc
+    * Internal 5k-5k-5k divider sets the 2/3 and 1/3 VCC comparator references.
+    R1 vcc ctrl 5k
+    R2 ctrl n13 5k
+    R3 n13 gnd 5k
+    * Comparators driving an SR latch held on node q.
+    Ecomp1 c1 gnd VALUE={IF(V(thres)>V(ctrl), 1, 0)}
+    Ecomp2 c2 gnd VALUE={IF(V(trig)<V(n13), 1, 0)}
+    Elatch q gnd VALUE={IF(V(c2)>0.5, 1, IF(V(c1)>0.5, 0, V(q)))}
+    Cq q gnd 1p
+    * Push-pull output and the open-collector discharge transistor.
+    Eout outi gnd VALUE={IF(V(reset)<1, 0, IF(V(q)>0.5, V(vcc)-1.7, 0))}
+    Rout outi out 10
+    Rdisch disch gnd VALUE={IF(V(q)>0.5, 1e9, 20)}
+    .ends NE555
+
+ratings:
+  - quantity: current
+    through: [output, gnd]
+    max: 0.2
+    unit: A
+    note: 200 mA maximum output current.
+  - quantity: voltage
+    across: [vcc, gnd]
+    max: 16
+    unit: V
+    note: 16 V maximum supply voltage.
+  - quantity: power
+    part: true
+    max: 0.6
+    unit: W
+    note: 600 mW package dissipation.
+
+states:
+  - state: running
+    when:
+      quantity: current
+      through: [vcc, gnd]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: idle
+    otherwise: true
+
+visual:
+  symbol2d: symbols/timer-ne555.svg
+  accent: '#6e7781'
+  size: [3, 4]
+
+footprint:
+  breadboard:
+    pins:
+      gnd: [0, 0]
+      trigger: [0, 1]
+      output: [0, 2]
+      reset: [0, 3]
+      control: [3, 3]
+      threshold: [3, 2]
+      discharge: [3, 1]
+      vcc: [3, 0]

@@ -1,0 +1,62 @@
+id: capacitor-electrolytic
+version: 1
+name: Electrolytic Capacitor
+category: Passive
+description: Large polarised capacitor. The minus stripe must go to the lower voltage.
+labelPrefix: C
+source: >-
+  Nichicon UVR series aluminium electrolytic capacitor datasheet (10 uF 25 V):
+  25 V DC rated working voltage; the series specification states that reverse
+  voltage must not exceed 1 V.
+
+pins:
+  - { id: pos, name: '+' }
+  - { id: neg, name: '-' }
+requiredPins: [pos, neg]
+polarized: { positive: pos, negative: neg }
+
+params:
+  capacitance:
+    type: number
+    label: Capacitance
+    unit: F
+    default: 0.00001
+    min: 0.0000001
+    max: 0.01
+    presets: [0.000001, 0.0000047, 0.00001, 0.000022, 0.000047, 0.0001, 0.00047, 0.001]
+
+spice:
+  element: C
+  template: 'C{label} {pin.pos} {pin.neg} {param.capacitance}'
+
+ratings:
+  - quantity: voltage
+    across: [pos, neg]
+    max: 25
+    unit: V
+    note: 25 V DC rated working voltage.
+  - quantity: reverse_voltage
+    across: [neg, pos]
+    max: 1
+    unit: V
+    note: Reverse voltage must not exceed 1 V.
+
+states:
+  - state: charging
+    when:
+      quantity: current
+      through: [pos, neg]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: settled
+    otherwise: true
+
+visual:
+  symbol2d: symbols/capacitor-electrolytic.svg
+  accent: '#8250df'
+  size: [2, 2]
+
+footprint:
+  breadboard:
+    pins:
+      pos: [0, 0]
+      neg: [1, 0]

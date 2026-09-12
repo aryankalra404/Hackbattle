@@ -1,0 +1,26 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/schema"
+    },
+    {
+      "path": "./packages/parts"
+    },
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/rules"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./scripts"
+    }
+  ]
+}

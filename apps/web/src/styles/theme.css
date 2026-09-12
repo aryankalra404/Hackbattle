@@ -1,0 +1,308 @@
+/*
+ * CircuitGit light theme.
+ *
+ * Two influences, deliberately: the workbench (a friendly, roomy canvas with
+ * rounded surfaces and coloured part chips) and the version-control surfaces
+ * (dense, neutral, monospaced hashes, diff greens and reds).
+ */
+
+:root {
+  /* Surfaces */
+  --bg-app: #f6f8fa;
+  --bg-surface: #ffffff;
+  --bg-sunken: #f0f3f6;
+  --bg-canvas: #fbfcfd;
+  --bg-hover: #f3f4f6;
+  --bg-active: #eaeef2;
+
+  /* Ink */
+  --fg: #1f2328;
+  --fg-muted: #59636e;
+  --fg-subtle: #818b98;
+  --fg-on-accent: #ffffff;
+
+  /* Lines */
+  --border: #d1d9e0;
+  --border-strong: #b7c0c9;
+  --border-subtle: #e4e8ec;
+
+  /* Accents */
+  --accent: #0969da;
+  --accent-hover: #0860c7;
+  --accent-soft: #ddf4ff;
+  --accent-border: #b6e3ff;
+
+  --success: #1a7f37;
+  --success-soft: #dafbe1;
+  --success-border: #aceebb;
+
+  --danger: #cf222e;
+  --danger-hover: #b91c26;
+  --danger-soft: #ffebe9;
+  --danger-border: #ffcecb;
+
+  --warning: #9a6700;
+  --warning-soft: #fff8c5;
+  --warning-border: #f2e5a0;
+
+  --purple: #8250df;
+  --purple-soft: #fbefff;
+
+  /* Type */
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Geometry */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(31, 35, 40, 0.07);
+  --shadow: 0 3px 10px rgba(31, 35, 40, 0.1);
+  --shadow-lg: 0 12px 32px rgba(31, 35, 40, 0.16);
+
+  --topbar-h: 56px;
+  --statusbar-h: 30px;
+  --panel-w: 264px;
+  --inspector-w: 320px;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---- shared primitives -------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fg-on-accent);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn--success {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--fg-on-accent);
+}
+
+.btn--success:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+}
+
+.btn--sm {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  background: var(--bg-surface);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.empty {
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--fg-subtle);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 3px solid var(--bg-surface);
+  border-radius: 999px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.field__hint {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  line-height: 1.5;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  line-height: 20px;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.badge--pass {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+
+.badge--fail {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.badge--warn {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+  color: var(--warning);
+}
+
+.badge--unavailable,
+.badge--pending {
+  background: var(--bg-sunken);
+  border-color: var(--border);
+  color: var(--fg-subtle);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

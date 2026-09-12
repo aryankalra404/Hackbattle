@@ -1,0 +1,37 @@
+{
+  "name": "circuitgit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --build --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rimraf \"packages/*/dist\" \"apps/*/dist\" \"**/*.tsbuildinfo\"",
+    "dev": "pnpm --filter @circuitgit/web dev",
+    "build": "pnpm --filter @circuitgit/web build",
+    "sync": "pnpm --filter @circuitgit/api start"
+  },
+  "devDependencies": {
+    "@circuitgit/schema": "workspace:*",
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

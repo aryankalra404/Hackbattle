@@ -1,0 +1,68 @@
+id: dc-supply
+version: 1
+name: DC Supply
+category: Power
+description: Battery or bench supply. Sets the circuit's positive rail.
+labelPrefix: V
+source: >-
+  Not a datasheet part. Output voltage and current limit are user parameters, so
+  the generic power_budget check reads them from the instance rather than from a
+  fixed rating. Defaults follow common hobby supplies (AA cell 1.5 V, USB 5 V,
+  9 V PP3 battery, 12 V adapter).
+
+pins:
+  - { id: pos, name: '+', role: power }
+  - { id: neg, name: '-', role: ground }
+requiredPins: [pos, neg]
+polarized: { positive: pos, negative: neg }
+
+params:
+  voltage:
+    type: number
+    label: Voltage
+    unit: V
+    default: 5
+    min: 0
+    max: 60
+    presets: [1.5, 3, 3.3, 5, 9, 12, 24]
+    siPrefix: false
+  currentLimit:
+    type: number
+    label: Current limit
+    unit: A
+    default: 1
+    min: 0.001
+    max: 20
+    presets: [0.02, 0.1, 0.5, 1, 2, 5]
+    description: How much the supply can deliver before power_budget flags it.
+
+spice:
+  element: V
+  template: 'V{label} {pin.pos} {pin.neg} DC {param.voltage}'
+
+ratings:
+  - quantity: current
+    through: [pos, neg]
+    max: { paramRef: currentLimit }
+    unit: A
+    note: Supply cannot deliver more than its configured current limit.
+
+states:
+  - state: supplying
+    when:
+      quantity: current
+      through: [pos, neg]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: idle
+    otherwise: true
+
+visual:
+  symbol2d: symbols/dc-supply.svg
+  accent: '#cf222e'
+  size: [2, 2]
+
+footprint:
+  breadboard:
+    pins:
+      pos: [0, 0]
+      neg: [0, 1]
