@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -43,13 +43,23 @@ function resolvePin(
 }
 
 function MirrorInner() {
-  const { circuit, connected, simulateResult } = useQuestBridge();
+  const { circuit, connected, simulateResult, sessionId } = useQuestBridge();
   const components = circuit?.components ?? [];
   const wires = circuit?.wires ?? [];
   const board = circuit?.board;
 
-  const originX = board?.pos.x ?? components[0]?.pos?.x ?? 0;
-  const originZ = board?.pos.z ?? components[0]?.pos?.z ?? 0;
+  // Fixed once per session rather than recomputed from the live board
+  // position: everything (including the board node itself) is plotted
+  // relative to this point, so the Arduino visually moves like any other
+  // component instead of being the frame its own offset always cancels out.
+  const originRef = useRef<{ sessionId: string; x: number; z: number } | null>(null);
+  if (originRef.current?.sessionId !== sessionId) originRef.current = null;
+  if (originRef.current === null) {
+    const seed = board?.pos ?? components[0]?.pos;
+    if (seed) originRef.current = { sessionId, x: seed.x, z: seed.z };
+  }
+  const originX = originRef.current?.x ?? 0;
+  const originZ = originRef.current?.z ?? 0;
 
   const simulatedLeds = useMemo(() => {
     const byId = new Map<string, { pattern: 'on' | 'off' | 'blink' | 'pattern'; onMs?: number; offMs?: number }>();
@@ -85,14 +95,17 @@ function MirrorInner() {
       list.push({
         id: BOARD_NODE_ID,
         type: 'questPart',
-        position: { x: 300, y: 200 },
+        position: {
+          x: ((board?.pos?.x ?? originX) - originX) * SCALE + 300,
+          y: ((board?.pos?.z ?? originZ) - originZ) * SCALE + 200,
+        },
         data: { label: 'Arduino', kind: 'board' },
         draggable: false,
         selectable: false,
       });
     }
     return list;
-  }, [components, board, originX, originZ, simulatedLeds]);
+  }, [components, board, wires, originX, originZ, simulatedLeds]);
 
   const edges: Edge[] = useMemo(
     () =>
