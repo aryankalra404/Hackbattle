@@ -16,8 +16,10 @@ public class CircuitComponentSpawner : MonoBehaviour
     [SerializeField] private Transform componentParent;
     [Tooltip("Optional anchor. Assign SpawnPanelCube to spawn beside the UI panel.")]
     [SerializeField] private Transform spawnPanel;
-    [Tooltip("Position beside SpawnPanelCube in the panel's local space.")]
-    [SerializeField] private Vector3 spawnPanelOffset = new Vector3(0.30f, 0f, 0f);
+    [Tooltip("Position beside SpawnPanelCube in the panel's local space. The z component pushes the spawn " +
+        "forward off the panel's face (toward the player) so it doesn't land flush with the UI and become " +
+        "hard to grab; flip its sign if components spawn behind the panel instead.")]
+    [SerializeField] private Vector3 spawnPanelOffset = new Vector3(0.30f, 0f, 0.15f);
     [SerializeField] private Vector3 spawnCenter = new Vector3(0.18f, 0.88f, 0.50f);
     [SerializeField] private float spawnSpacing = 0.12f;
 
