@@ -9,6 +9,10 @@ const { createCommit, listCommits, getCommit, summarizeCommit, detectCommitInten
 
 const PORT = Number(process.env.PORT || 3001);
 const REASONING_DEBOUNCE_MS = 1200;
+// Bounds how much room a stated goal has to smuggle in an elaborate prompt
+// injection payload, not just a UX nicety — the reasoner treats this as
+// untrusted text regardless, but a short cap costs nothing.
+const MAX_INTENT_LENGTH = 300;
 const sessions = new Map();
 
 function createCircuitUpdateDebouncer({ delayMs = REASONING_DEBOUNCE_MS, onFire, log = console.log }) {
@@ -164,7 +168,7 @@ io.on('connection', (socket) => {
   socket.on('circuit:intent', (payload = {}) => {
     const sessionId = cleanSessionId(payload.sessionId);
     if (!sessionId) return;
-    const intent = typeof payload.intent === 'string' ? payload.intent.trim() : '';
+    const intent = typeof payload.intent === 'string' ? payload.intent.trim().slice(0, MAX_INTENT_LENGTH) : '';
     const session = sessions.get(sessionId);
     if (session) {
       session.intent = intent;
