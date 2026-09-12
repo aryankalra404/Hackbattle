@@ -1627,3 +1627,83 @@
   font-size: 11px;
   color: var(--fg-subtle);
 }
+
+/* Chat tab — back-and-forth with CircuitDoctor, the text side of the same
+   voice chat on the headset. */
+.quest-chat {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+}
+
+.quest-chat__list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quest-chat__turn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 88%;
+}
+
+.quest-chat__turn p {
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.quest-chat__role {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.quest-chat__turn--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.quest-chat__turn--user p {
+  background: var(--accent);
+  color: var(--fg-on-accent);
+  border-bottom-right-radius: 2px;
+}
+
+.quest-chat__turn--assistant {
+  align-self: flex-start;
+}
+
+.quest-chat__turn--assistant p {
+  background: var(--bg-sunken);
+  border-bottom-left-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quest-chat__turn--pending p {
+  color: var(--fg-muted);
+}
+
+.quest-chat__composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.quest-chat__input {
+  resize: none;
+  font: inherit;
+  flex: 1;
+}

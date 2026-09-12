@@ -47,21 +47,6 @@ describe('browser part library', () => {
 });
 
 describe('editor shell', () => {
-  it('renders the palette from the part library', () => {
-    render(<App />);
-    // Every part in the library is offered in the palette.
-    for (const part of partLibrary.all()) {
-      expect(screen.getAllByText(part.name).length, `${part.id} missing`).toBeGreaterThan(0);
-    }
-  });
-
-  it('groups the palette by the category declared in each part file', () => {
-    render(<App />);
-    for (const group of partLibrary.categories()) {
-      expect(screen.getAllByText(group.category).length).toBeGreaterThan(0);
-    }
-  });
-
   it('shows the branch, the product name and the Quest mirror hint', () => {
     render(<App />);
     expect(screen.getByText(config.product.name)).toBeDefined();
@@ -69,17 +54,19 @@ describe('editor shell', () => {
     expect(screen.getAllByText(config.versionControl.defaultBranch).length).toBeGreaterThan(0);
     // The centre canvas mirrors the Quest bridge, not the local snapshot — it
     // starts disconnected in a test environment with no bridge server. The
-    // Checks tab (rendered but hidden behind Parts, the default tab) shows
+    // Checks tab (rendered but hidden behind Chat, the default tab) shows
     // its own copy of the same message.
     expect(screen.getAllByText(/Not connected to the Quest bridge/).length).toBeGreaterThan(0);
   });
 
-  it('adds a part when its palette chip is clicked, and runs checks on it', () => {
+  it('adds a part and runs checks on it', () => {
+    // The palette that drove this isn't in the UI right now (Chat took its
+    // spot in the right rail — see RightRail.tsx), but the store action and
+    // the checks it triggers are unchanged, so this exercises them directly.
     render(<App />);
     const before = Object.keys(useStore.getState().snapshot.components).length;
 
-    const chip = screen.getByTitle(new RegExp(partLibrary.get('resistor').description, 'i'));
-    fireEvent.click(chip);
+    useStore.getState().addComponent(partLibrary.get('resistor'), { x: 0, y: 0 });
 
     const state = useStore.getState();
     expect(Object.keys(state.snapshot.components)).toHaveLength(before + 1);
@@ -91,7 +78,7 @@ describe('editor shell', () => {
 
   it('never claims simulation or LLM checks passed', () => {
     render(<App />);
-    fireEvent.click(screen.getByTitle(new RegExp(partLibrary.get('resistor').description, 'i')));
+    useStore.getState().addComponent(partLibrary.get('resistor'), { x: 0, y: 0 });
     // Scoped to the top bar: the Quest rail has its own "Commit build" button
     // for a different thing (the circuit built live on the headset).
     const topbar = screen.getByRole('banner');
@@ -102,11 +89,11 @@ describe('editor shell', () => {
     expect(within(dialog).getByText(/llm unavailable/)).toBeDefined();
   });
 
-  it('switches the right rail between Parts, Context and Checks', () => {
+  it('switches the right rail between Chat, Context and Checks', () => {
     render(<App />);
 
-    // Parts is the default tab: the palette search box is present.
-    expect(screen.getByPlaceholderText(/Search parts/)).toBeDefined();
+    // Chat is the default tab: the message box is present.
+    expect(screen.getByPlaceholderText(/Ask CircuitDoctor/)).toBeDefined();
 
     fireEvent.click(screen.getByRole('button', { name: /^Context/ }));
     expect(screen.getByText(/What are you building\?/)).toBeDefined();
@@ -203,7 +190,7 @@ describe('simulation session locks the workspace', () => {
     expect(Object.keys(useStore.getState().snapshot.components)).toHaveLength(count + 1);
   });
 
-  it('shows the banner and disables the palette in the UI', async () => {
+  it('shows the banner while a session runs', async () => {
     buildValidCircuit();
     await useStore.getState().startSimulation();
     render(<App />);
@@ -211,10 +198,6 @@ describe('simulation session locks the workspace', () => {
     expect(screen.getByText(/circuit locked/i)).toBeDefined();
     // Two ways out: the top bar and the banner.
     expect(screen.getAllByRole('button', { name: /Stop session/ })).toHaveLength(2);
-
-    // Palette chips are disabled rather than merely dimmed.
-    const chip = screen.getByTitle(new RegExp(partLibrary.get('resistor').description, 'i'));
-    expect(chip).toHaveProperty('disabled', true);
   });
 
   it('collapses repeated refusals into one message', async () => {

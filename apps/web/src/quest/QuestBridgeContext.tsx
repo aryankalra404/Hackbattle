@@ -57,6 +57,8 @@ export type QuestCheckResult = {
   faults: QuestFault[];
 };
 
+export type QuestChatTurn = { role: 'user' | 'assistant'; content: string };
+
 type QuestBridgeState = {
   serverUrl: string;
   setServerUrl: (value: string) => void;
@@ -74,6 +76,9 @@ type QuestBridgeState = {
   setIntent: (intent: string) => void;
   checkResult: QuestCheckResult | null;
   checking: boolean;
+  chatHistory: QuestChatTurn[];
+  chatPending: boolean;
+  sendChatMessage: (message: string) => void;
 };
 
 const DEFAULTS = { serverUrl: 'http://localhost:3001', sessionId: 'demo-room' };
@@ -111,6 +116,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   const [intent, setIntentState] = useState('');
   const [checkResult, setCheckResult] = useState<QuestCheckResult | null>(null);
   const [checking, setChecking] = useState(false);
+  const [chatHistory, setChatHistory] = useState<QuestChatTurn[]>([]);
+  const [chatPending, setChatPending] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const intentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,6 +159,10 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     socket.on('commit:error', (payload: { message: string }) => {
       setError(payload.message);
       setBusy(null);
+    });
+    socket.on('chat:response', (payload: { ok: boolean; message: string }) => {
+      setChatHistory((history) => [...history, { role: 'assistant', content: payload.message }]);
+      setChatPending(false);
     });
 
     saveDefault('circuitdoctor.serverUrl', serverUrl);
@@ -201,6 +212,17 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     [connected, sessionId],
   );
 
+  const sendChatMessage = useCallback(
+    (message: string) => {
+      const text = message.trim();
+      if (!socketRef.current || !connected || !text) return;
+      setChatHistory((history) => [...history, { role: 'user', content: text }]);
+      setChatPending(true);
+      socketRef.current.emit('chat:message', { sessionId, message: text });
+    },
+    [connected, sessionId],
+  );
+
   const value: QuestBridgeState = {
     serverUrl,
     setServerUrl,
@@ -218,6 +240,9 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     setIntent,
     checkResult,
     checking,
+    chatHistory,
+    chatPending,
+    sendChatMessage,
   };
 
   return <QuestBridgeCtx.Provider value={value}>{children}</QuestBridgeCtx.Provider>;

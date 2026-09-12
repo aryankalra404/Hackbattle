@@ -1,25 +1,28 @@
 import { useState } from 'react';
-import { partLibrary } from '../state/library.js';
-import { Palette } from './Palette.js';
+import { QuestChatPanel } from '../quest/QuestChatPanel.js';
 import { QuestContextPanel } from '../quest/QuestContextPanel.js';
 import { QuestChecksPanel } from '../quest/QuestChecksPanel.js';
 import { useQuestBridge } from '../quest/QuestBridgeContext.js';
 
 /**
- * The right rail: Parts (drag onto the canvas — same palette that drives the
- * web and, later, the VR builder, so both stay in sync off one source), a
+ * The right rail: Chat (ask CircuitDoctor questions, grounded on the live
+ * circuit graph — the text side of the same voice chat on the headset), a
  * Context tab (what you're building, sent to the LLM checker), and Checks
  * (the live LLM + rules check on the circuit built on the Quest).
+ *
+ * Parts is temporarily out — the palette drove the old local 2D editor,
+ * which nothing here still uses now that the centre canvas mirrors the
+ * Quest build. `Palette.tsx` is untouched if that comes back later.
  *
  * One tab fills the whole rail at a time instead of three panels each
  * fighting for a third of the height — the thing that made every one of them
  * need its own cramped scroll area.
  */
 
-type Tab = 'parts' | 'context' | 'checks';
+type Tab = 'chat' | 'context' | 'checks';
 
 export function RightRail() {
-  const [tab, setTab] = useState<Tab>('parts');
+  const [tab, setTab] = useState<Tab>('chat');
   const { checkResult, checking } = useQuestBridge();
 
   return (
@@ -27,11 +30,10 @@ export function RightRail() {
       <nav className="rightrail__tabs" aria-label="Right rail">
         <button
           type="button"
-          className={`tab${tab === 'parts' ? ' tab--on' : ''}`}
-          onClick={() => setTab('parts')}
+          className={`tab${tab === 'chat' ? ' tab--on' : ''}`}
+          onClick={() => setTab('chat')}
         >
-          Parts
-          <span className="chip">{partLibrary.all().length}</span>
+          Chat
         </button>
         <button
           type="button"
@@ -55,8 +57,8 @@ export function RightRail() {
         </button>
       </nav>
 
-      <div className="rightrail__panel" hidden={tab !== 'parts'}>
-        <Palette embedded />
+      <div className="rightrail__panel" hidden={tab !== 'chat'}>
+        <QuestChatPanel />
       </div>
       <div className="rightrail__panel" hidden={tab !== 'context'}>
         <QuestContextPanel />

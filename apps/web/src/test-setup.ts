@@ -24,6 +24,10 @@ if (!('DOMMatrixReadOnly' in globalThis)) {
   (globalThis as { DOMMatrixReadOnly?: unknown }).DOMMatrixReadOnly = DOMMatrixReadOnlyStub;
 }
 
+if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {};
+}
+
 if (!globalThis.matchMedia) {
   globalThis.matchMedia = ((query: string) => ({
     matches: false,
