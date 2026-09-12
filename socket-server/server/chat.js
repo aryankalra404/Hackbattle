@@ -160,4 +160,4 @@ function appendChatTurn(session, role, content) {
   session.chatHistory = session.chatHistory.slice(-MAX_HISTORY_MESSAGES);
 }
 
-module.exports = { answerChatMessage, answerVoiceMessage, createVoiceReplyAudio, appendChatTurn, buildRetrievalQuery, summarizeCircuit, fallbackResponse, MAX_HISTORY_MESSAGES, TTS_MODEL, TTS_VOICE };
+module.exports = { answerChatMessage, answerVoiceMessage, transcribeAudio, createVoiceReplyAudio, appendChatTurn, buildRetrievalQuery, summarizeCircuit, fallbackResponse, MAX_HISTORY_MESSAGES, TTS_MODEL, TTS_VOICE };

@@ -4,7 +4,8 @@ const { Server } = require('socket.io');
 // Kept as a deterministic offline fallback if the LLM is unavailable.
 const { diagnoseCircuit } = require('./rules');
 const { diagnoseAndVerify } = require('./reasoning/diagnoseAndVerify');
-const { answerChatMessage, answerVoiceMessage, createVoiceReplyAudio, appendChatTurn, fallbackResponse } = require('./server/chat');
+const { answerChatMessage, transcribeAudio, createVoiceReplyAudio, appendChatTurn, fallbackResponse } = require('./server/chat');
+const { getClient } = require('./reasoning/openaiCircuitReasoner');
 const { createCommit, listCommits, getCommit, clearCommits, summarizeCommit, detectCommitIntent } = require('./commits');
 const { compileSketch } = require('./compile/compileSketch');
 const { simulateSketch } = require('./simulate/simulateSketch');
@@ -423,11 +424,22 @@ io.on('connection', (socket) => {
       // from the headset still needs the dashboard transcript to update.
       io.to(sessionId).emit('chat:voice-response', { ok, transcript, message, audioUrl });
     };
+    // Transcription and answering fail for different reasons and need different
+    // messages: a transcription failure has no real transcript to show, while an
+    // answering failure still has one and should show it as what the user said
+    // instead of masking it behind a made-up "could not transcribe" quote.
+    let transcript;
     try {
-      const response = await answerVoiceMessage({ session, audioUrl, language });
-      appendChatTurn(session, 'user', response.transcript);
+      transcript = await transcribeAudio(audioUrl, getClient());
+    } catch (error) {
+      console.warn(`[voice] ${sessionId}: transcription failed: ${error.message}`);
+      await emitVoiceResponse({ ok: false, message: 'I could not understand that recording. Please try again or type your question.' });
+      return;
+    }
 
-      const commitIntent = detectCommitIntent(response.transcript);
+    appendChatTurn(session, 'user', transcript);
+    try {
+      const commitIntent = detectCommitIntent(transcript);
       if (commitIntent) {
         const hasComponents = Array.isArray(session.circuit?.components) && session.circuit.components.length > 0;
         const hasCode = typeof session.code === 'string' && session.code.trim().length > 0;
@@ -447,18 +459,18 @@ io.on('connection', (socket) => {
             })()
           : 'Nothing to commit yet, build something first.';
         appendChatTurn(session, 'assistant', reply);
-        await emitVoiceResponse({ ok: canCommit, transcript: response.transcript, message: reply });
+        await emitVoiceResponse({ ok: canCommit, transcript, message: reply });
         return;
       }
 
-      appendChatTurn(session, 'assistant', response.answer);
-      await emitVoiceResponse({ ok: true, transcript: response.transcript, message: response.answer });
+      const answer = await answerChatMessage({ session, message: transcript, language });
+      appendChatTurn(session, 'assistant', answer);
+      await emitVoiceResponse({ ok: true, transcript, message: answer });
     } catch (error) {
-      console.warn(`[voice] ${sessionId}: failed; returning grounded fallback: ${error.message}`);
+      console.warn(`[voice] ${sessionId}: failed to answer; returning grounded fallback: ${error.message}`);
       const response = fallbackResponse(session);
-      appendChatTurn(session, 'user', 'Voice question');
       appendChatTurn(session, 'assistant', response);
-      await emitVoiceResponse({ ok: false, transcript: 'I could not transcribe that recording.', message: response });
+      await emitVoiceResponse({ ok: false, transcript, message: response });
     }
   });
 
