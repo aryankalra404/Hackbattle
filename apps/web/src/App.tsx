@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar.js';
 import { Palette } from './components/Palette.js';
-import { Canvas } from './components/Canvas.js';
 import { Inspector } from './components/Inspector.js';
 import { FindingsPanel } from './components/FindingsPanel.js';
 import { History } from './components/History.js';
 import { useStore } from './state/store.js';
 import { partLibrary } from './state/library.js';
+import { QuestBridgeProvider } from './quest/QuestBridgeContext.js';
+import { QuestCommitPanel } from './quest/QuestCommitPanel.js';
+import { QuestMirrorCanvas } from './quest/QuestMirrorCanvas.js';
 
 function Toasts() {
   const toasts = useStore((s) => s.toasts);
@@ -100,14 +102,17 @@ export function App() {
       {mode === 'simulate' && <SessionBanner />}
 
       {view === 'editor' ? (
-        <main className={`workspace${paletteOpen ? '' : ' workspace--palette-collapsed'}`}>
-          <Palette />
-          <Canvas />
-          <div className="rightrail">
-            <Inspector />
-            <FindingsPanel />
-          </div>
-        </main>
+        <QuestBridgeProvider>
+          <main className="workspace">
+            <QuestCommitPanel />
+            <QuestMirrorCanvas />
+            <div className={`rightrail${paletteOpen ? '' : ' rightrail--palette-collapsed'}`}>
+              <Palette />
+              <Inspector />
+              <FindingsPanel />
+            </div>
+          </main>
+        </QuestBridgeProvider>
       ) : (
         <main className="workspace workspace--history">
           <History />
