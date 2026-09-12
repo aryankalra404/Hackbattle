@@ -105,4 +105,25 @@ function getCommit(sessionId, commitId) {
   return readAll(sessionId).find((commit) => commit.id === commitId) ?? null;
 }
 
-module.exports = { createCommit, listCommits, getCommit, summarizeCommit: summarize };
+/**
+ * Reads a voice transcript for a commit command, e.g. "commit this with
+ * message added a resistor" or just "commit this". Returns null when the
+ * transcript is not a commit command, so the caller falls through to
+ * answering it as an ordinary question instead.
+ */
+function detectCommitIntent(transcript) {
+  const text = typeof transcript === 'string' ? transcript.trim() : '';
+  if (!text || !/\bcommit\b/i.test(text)) return null;
+
+  const messageMatch = text.match(/\b(?:message|msg)\b\s*(?:is|was)?\s*[:,-]?\s*(.+)$/i);
+  let message = messageMatch ? messageMatch[1].trim() : '';
+  if (!message) {
+    message = text
+      .replace(/^.*?\bcommit\b\s*/i, '')
+      .replace(/^(this|it|the circuit|my build)\b\s*/i, '')
+      .trim();
+  }
+  return { message: message || 'Voice commit' };
+}
+
+module.exports = { createCommit, listCommits, getCommit, summarizeCommit: summarize, detectCommitIntent };

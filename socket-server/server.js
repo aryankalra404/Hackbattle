@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const { diagnoseCircuit } = require('./rules');
 const { diagnoseAndVerify } = require('./reasoning/diagnoseAndVerify');
 const { answerChatMessage, answerVoiceMessage, createVoiceReplyAudio, appendChatTurn, fallbackResponse } = require('./server/chat');
-const { createCommit, listCommits, getCommit, summarizeCommit } = require('./commits');
+const { createCommit, listCommits, getCommit, summarizeCommit, detectCommitIntent } = require('./commits');
 
 const PORT = Number(process.env.PORT || 3001);
 const REASONING_DEBOUNCE_MS = 1200;
@@ -328,6 +328,24 @@ io.on('connection', (socket) => {
     try {
       const response = await answerVoiceMessage({ session, audioUrl });
       appendChatTurn(session, 'user', response.transcript);
+
+      const commitIntent = detectCommitIntent(response.transcript);
+      if (commitIntent) {
+        const hasComponents = Array.isArray(session.circuit?.components) && session.circuit.components.length > 0;
+        const reply = hasComponents
+          ? (() => {
+              const commit = createCommit(sessionId, { message: commitIntent.message, author: 'voice', circuit: session.circuit });
+              console.log(`[voice] ${sessionId}: committed ${commit.id} "${commit.message}" by voice`);
+              io.to(sessionId).emit('commit:created', { commit: summarizeCommit(commit) });
+              io.to(sessionId).emit('commit:list', { sessionId, commits: listCommits(sessionId) });
+              return `Committed as "${commit.message}".`;
+            })()
+          : 'Nothing to commit yet, build something first.';
+        appendChatTurn(session, 'assistant', reply);
+        await emitVoiceResponse({ ok: hasComponents, transcript: response.transcript, message: reply });
+        return;
+      }
+
       appendChatTurn(session, 'assistant', response.answer);
       await emitVoiceResponse({ ok: true, transcript: response.transcript, message: response.answer });
     } catch (error) {
