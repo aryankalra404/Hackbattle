@@ -32,6 +32,8 @@ const RESERVED_PART_WORDS = [
   'buzzer',
   '555',
   'timer',
+  'breadboard',
+  'arduino',
 ];
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts']);

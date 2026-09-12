@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { emptySnapshot, pinRef } from '@circuitgit/schema';
+import { emptySnapshot, pinParamKey, pinRef } from '@circuitgit/schema';
 import { electricalHash } from '@circuitgit/core';
 import { App } from './App.js';
 import { partLibrary, config } from './state/library.js';
@@ -42,7 +42,7 @@ describe('browser part library', () => {
 
   it('has a symbol for every part', () => {
     for (const part of partLibrary.all()) {
-      expect(part.visual.symbol2d, `${part.id}`).toMatch(/^symbols\//);
+      expect(part.visual.symbol2d.path, `${part.id}`).toMatch(/^symbols\//);
     }
   });
 });
@@ -130,6 +130,39 @@ describe('editor shell', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /History/ }));
     expect(screen.getByText(/No commits yet/)).toBeDefined();
+  });
+});
+
+describe('pin functions and pin modes', () => {
+  // Chips carry the description as their title, which for a multi-line YAML
+  // string may include newlines; match on the first few words.
+  const chipFor = (id: string) =>
+    screen.getByTitle(new RegExp(partLibrary.get(id).description.split(' ').slice(0, 4).join(' ')));
+
+  it('builds a pin-mode table from the pin map and flags an impossible mode', () => {
+    render(<App />);
+    fireEvent.click(chipFor('arduino-uno-r3'));
+
+    const board = partLibrary.get('arduino-uno-r3');
+    const d2 = board.pins.find((pin) => pin.id === 'd2');
+    if (!d2) throw new Error('fixture: board has no d2');
+
+    // D2 cannot do PWM: the option says so, but stays selectable.
+    const select = screen.getByLabelText(`${d2.name} Mode`) as HTMLSelectElement;
+    const pwm = [...select.options].find((option) => option.value === 'pwm');
+    expect(pwm?.textContent).toMatch(/not on this pin/);
+
+    fireEvent.change(select, { target: { value: 'pwm' } });
+    const [id] = Object.keys(useStore.getState().snapshot.components);
+    expect(useStore.getState().snapshot.components[id ?? '']?.params[pinParamKey('pinModes', 'd2', 'mode')]).toBe('pwm');
+    expect(useStore.getState().findings.some((f) => f.kind === 'pin_function_mismatch')).toBe(true);
+  });
+
+  it('lists only the breadboard holes in use', () => {
+    render(<App />);
+    fireEvent.click(chipFor('breadboard-full'));
+    expect(screen.getByText(/830 holes in 130 connected groups/)).toBeDefined();
+    expect(screen.getByText(/Nothing plugged in yet/)).toBeDefined();
   });
 });
 

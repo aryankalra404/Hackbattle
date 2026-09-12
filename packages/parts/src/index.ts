@@ -1,6 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 
 export * from './library.js';
+export * from './assets.js';
 
 /** Parse YAML part-definition sources into raw objects for `PartLibrary.fromRaw`. */
 export function parseYamlEntries(

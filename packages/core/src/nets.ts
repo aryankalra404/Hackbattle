@@ -3,9 +3,10 @@ import { parsePinRef, pinRef, type CircuitSnapshot } from '@circuitgit/schema';
 /**
  * Connectivity.
  *
- * A net is a set of pins tied together by wires. This is pure graph work: it
- * knows nothing about what any part is, only which pins exist and which wires
- * join them. The part library supplies the pin list.
+ * A net is a set of pins tied together — by wires, or inside a part by its
+ * internal groups (a breadboard row, a rail, two GND headers on one plane).
+ * This is pure graph work: it knows nothing about what any part is, only which
+ * pins it has and which of them it joins. The part library supplies both.
  */
 
 export type Net = {
@@ -19,6 +20,21 @@ export type NetList = {
   /** Pin ref -> net id. */
   netOfPin: Map<string, string>;
 };
+
+/** What the net builder needs to know about a part. Never its identity. */
+export type PartTopology = {
+  pins: readonly string[];
+  /** Pin sets the part joins internally; each becomes part of one net. */
+  groups: readonly (readonly string[])[];
+  /**
+   * Pure interconnect: no electrical element of its own. It joins pins within
+   * each group and conducts nothing between groups.
+   */
+  interconnect: boolean;
+};
+
+/** Topology by part ref, or undefined for a part the library does not have. */
+export type TopologyLookup = (partRef: string) => PartTopology | undefined;
 
 class UnionFind {
   private readonly parent = new Map<string, string>();
@@ -69,17 +85,22 @@ class UnionFind {
 }
 
 /**
- * Compute nets. `pinsOf` supplies each component's pin ids from the part
- * library, so this function never needs to know what a component is.
+ * Compute nets. `topologyOf` supplies each component's pins and internal
+ * groups from the part library, so this function never needs to know what a
+ * component is.
  */
-export function computeNets(
-  snapshot: CircuitSnapshot,
-  pinsOf: (partRef: string) => readonly string[],
-): NetList {
+export function computeNets(snapshot: CircuitSnapshot, topologyOf: TopologyLookup): NetList {
   const uf = new UnionFind();
 
   for (const [componentId, component] of Object.entries(snapshot.components)) {
-    for (const pin of pinsOf(component.part)) uf.add(pinRef(componentId, pin));
+    const topology = topologyOf(component.part);
+    if (!topology) continue;
+    for (const pin of topology.pins) uf.add(pinRef(componentId, pin));
+    for (const group of topology.groups) {
+      const [first, ...rest] = group;
+      if (first === undefined) continue;
+      for (const pin of rest) uf.union(pinRef(componentId, first), pinRef(componentId, pin));
+    }
   }
   for (const wire of Object.values(snapshot.wires)) uf.union(wire.a, wire.b);
 
@@ -101,6 +122,39 @@ export function computeNets(
   return { nets, netOfPin };
 }
 
+/** Components whose part is a pure interconnect. */
+export function interconnectComponents(
+  snapshot: CircuitSnapshot,
+  topologyOf: TopologyLookup,
+): Set<string> {
+  return new Set(
+    Object.entries(snapshot.components)
+      .filter(([, component]) => topologyOf(component.part)?.interconnect === true)
+      .map(([id]) => id),
+  );
+}
+
+/**
+ * Pins that share a net with at least one other pin of a real (non-interconnect)
+ * component. A lead pushed into an otherwise empty breadboard row is wired but
+ * not connected to anything, and this is what tells the two apart.
+ */
+export function connectedPins(
+  snapshot: CircuitSnapshot,
+  netList: NetList,
+  topologyOf: TopologyLookup,
+): Set<string> {
+  const passive = interconnectComponents(snapshot, topologyOf);
+  const connected = new Set<string>();
+
+  for (const net of netList.nets) {
+    const real = net.pins.filter((pin) => !passive.has(parsePinRef(pin).componentId));
+    if (real.length < 2) continue;
+    for (const pin of real) connected.add(pin);
+  }
+  return connected;
+}
+
 /** Pins that belong to no wire at all. */
 export function floatingPins(netList: NetList): string[] {
   return netList.nets.filter((net) => net.pins.length === 1).flatMap((net) => net.pins);
@@ -114,31 +168,53 @@ export function groundNet(snapshot: CircuitSnapshot, netList: NetList): Net | un
   return netList.nets.find((net) => net.id === netId);
 }
 
-/** Components with no connection to the ground net. */
-export function componentsWithoutGroundPath(snapshot: CircuitSnapshot, netList: NetList): string[] {
+/**
+ * Components with no connection to the ground net. Interconnects are never
+ * reported and never bridge: a breadboard carries current along a row, not from
+ * one row to the next.
+ */
+export function componentsWithoutGroundPath(
+  snapshot: CircuitSnapshot,
+  netList: NetList,
+  topologyOf: TopologyLookup,
+): string[] {
+  const passive = interconnectComponents(snapshot, topologyOf);
+  const candidates = Object.keys(snapshot.components).filter((id) => !passive.has(id));
+
   const ground = groundNet(snapshot, netList);
-  if (!ground) return Object.keys(snapshot.components);
+  if (!ground) return candidates;
 
-  // Walk from ground through components: a component bridges its own pins.
-  const reachableNets = new Set<string>([ground.id]);
-  const reachedComponents = new Set<string>();
-  let grew = true;
+  const netsOfComponent = new Map<string, Set<string>>();
+  const componentsOnNet = new Map<string, Set<string>>();
+  for (const [pin, netId] of netList.netOfPin) {
+    const { componentId } = parsePinRef(pin);
+    if (passive.has(componentId)) continue;
+    let nets = netsOfComponent.get(componentId);
+    if (!nets) netsOfComponent.set(componentId, (nets = new Set()));
+    nets.add(netId);
+    let members = componentsOnNet.get(netId);
+    if (!members) componentsOnNet.set(netId, (members = new Set()));
+    members.add(componentId);
+  }
 
-  while (grew) {
-    grew = false;
-    for (const [pin, netId] of netList.netOfPin) {
-      if (!reachableNets.has(netId)) continue;
-      const { componentId } = parsePinRef(pin);
-      if (reachedComponents.has(componentId)) continue;
-      reachedComponents.add(componentId);
-      grew = true;
-      for (const [otherPin, otherNet] of netList.netOfPin) {
-        if (parsePinRef(otherPin).componentId === componentId) reachableNets.add(otherNet);
+  // Breadth-first from ground: a real component bridges all of its own pins.
+  const reachedNets = new Set<string>([ground.id]);
+  const reached = new Set<string>();
+  const queue = [ground.id];
+  while (queue.length > 0) {
+    const netId = queue.shift() ?? '';
+    for (const componentId of componentsOnNet.get(netId) ?? []) {
+      if (reached.has(componentId)) continue;
+      reached.add(componentId);
+      for (const next of netsOfComponent.get(componentId) ?? []) {
+        if (reachedNets.has(next)) continue;
+        reachedNets.add(next);
+        queue.push(next);
       }
     }
   }
 
-  return Object.keys(snapshot.components).filter((id) => !reachedComponents.has(id));
+  return candidates.filter((id) => !reached.has(id));
 }
 
 /** Compare two net lists — the raw material for conflicts C21 and C22. */

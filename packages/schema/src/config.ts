@@ -144,6 +144,7 @@ export const ruleKindSchema = z.enum([
   'power_budget',
   'hole_occupancy',
   'user_test_failed',
+  'pin_function_mismatch',
 ]);
 export type RuleKind = z.infer<typeof ruleKindSchema>;
 
@@ -154,6 +155,12 @@ export const rulesConfigSchema = z
       z.object({ enabled: z.boolean(), severity: severitySchema }).strict(),
     ),
     ratingHeadroom: positive,
+    /**
+     * Severity for findings that break a labelling convention rather than an
+     * electrical rule — e.g. a ground lead in a rail marked for power. Such a
+     * circuit works; it is just easy to misread.
+     */
+    conventionSeverity: severitySchema,
     thresholds: z.record(z.string(), z.number()),
   })
   .strict()
@@ -256,6 +263,10 @@ export const uiConfigSchema = z
   .object({
     diffColors: z.object({ added: hexColor, removed: hexColor, changed: hexColor }).strict(),
     autosaveIntervalMs: z.number().int().positive(),
+    /** On-screen size of one hole pitch for parts drawn as a hole grid. */
+    boardPitchPx: z.number().positive(),
+    /** Vertical room per pin on edge-pinned nodes, so many-pin parts grow instead of overlapping. */
+    pinRowPx: z.number().positive(),
   })
   .strict();
 

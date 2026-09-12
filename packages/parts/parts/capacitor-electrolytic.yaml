@@ -10,8 +10,8 @@ source: >-
   voltage must not exceed 1 V.
 
 pins:
-  - { id: pos, name: '+' }
-  - { id: neg, name: '-' }
+  - { id: pos, name: '+', functions: [analog_io] }
+  - { id: neg, name: '-', functions: [analog_io] }
 requiredPins: [pos, neg]
 polarized: { positive: pos, negative: neg }
 
@@ -51,7 +51,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/capacitor-electrolytic.svg
+  symbol2d: { path: symbols/capacitor-electrolytic.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#8250df'
   size: [2, 2]
 

@@ -38,7 +38,22 @@ export function formatParamSummary(
 ): string {
   const pieces: string[] = [];
 
+  // A pin map reads as "how many pins have a job", not as forty separate values.
+  for (const [mapId, map] of Object.entries(part.pinMaps)) {
+    const active = map.pins.filter((pin) =>
+      Object.entries(part.params).some(([id, definition]) => {
+        if (definition.group !== mapId || definition.pin !== pin || definition.type !== 'enum') {
+          return false;
+        }
+        const value = params[id] ?? definition.default;
+        return typeof value === 'string' && definition.modes?.[value] !== undefined;
+      }),
+    ).length;
+    pieces.push(`${active}/${map.pins.length} pins in use`);
+  }
+
   for (const [id, definition] of Object.entries(part.params)) {
+    if (definition.group) continue;
     const value = params[id];
     if (value === undefined) continue;
 

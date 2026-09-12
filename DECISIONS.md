@@ -272,3 +272,167 @@ handles that resolution. A build step would too, and is what production will use
 Panel layout is not part of the circuit, so it never touches the snapshot and
 never syncs. Reads and writes are wrapped in try/catch and default to expanded,
 because storage can be unavailable in a private window.
+
+## Part library v2 — pin functions, breadboard, Arduino (§5.1–5.1.3)
+
+### D30 · Pin `functions` replace the old `role` field
+
+`role` was read by nothing, so it is gone rather than kept alongside. Every pin
+now lists what it electrically is (`power`, `ground`, `analog_io`, `digital_io`,
+`pwm`, `analog_in`, the serial roles). A `power` pin with a `voltage` supplies
+it; one without (a 555's VCC, an Arduino's VIN) is a power input. The DC
+supply's `+` takes its voltage from its own param (`{ paramRef: voltage }`).
+
+Part versions were **not** bumped: no pin id changed, so no snapshot or
+`pinMigrations` entry is affected.
+
+### D31 · Pin ids stay lowercase snake_case
+
+The build prompt writes Arduino pins as `D0`, `5V`, `3V3`, `GND1` and breadboard
+holes as `row-12-a`. Pin refs (`<uuid>.<pin>`) are validated as
+`[a-z][a-z0-9_]*` everywhere, so the ids are `d0`, `v5`, `v3v3`, `gnd1` and
+`row12_a`, `power_pos_top_7`. The display names still read `5V`, `D3 ~`, `Row 12 A`.
+
+### D32 · Part files are compact; the schema expands them
+
+`partDefinitionSchema` now transforms, then validates the result, so references
+to generated pins are checked like any other:
+
+- `internalGroups` templates (`row`, `rail`, and a `pins` type for declared pins
+  that are one conductor, e.g. the Arduino's three GNDs) become concrete pins,
+  a grid position per pin (`pinLayout`), and `pinGroups`.
+- A `pinMap` param becomes one scalar param per pin and field, keyed
+  `<map>/<pin>/<field>`. `/` keeps it a single segment in dotted diff paths, and
+  keeps component params flat so hashing, diff and merge work per setting.
+- A rating with `eachPin` becomes one `pin` rating per selected pin.
+
+Row ranges are written `rows: { from: 1, to: 63 }` rather than the prompt's
+`[1, '...', 30]`, which is not a validatable shape.
+
+### D33 · The breadboard is a real 830-point board, and a pure interconnect
+
+63 rows (a–e / f–j) and four continuous 50-hole rails, matching the common
+full-size format (BusBoard BB830). The prompt's sketch showed 30 rows, which is
+a half-size board; "full-size" won. Split-rail boards are a data change (two
+groups per rail), not code.
+
+It has no `spice` block: a part with no electrical element of its own is an
+**interconnect**, and the schema requires every one of its pins to be in a group.
+It therefore has no ratings, and the library test now requires ratings only of
+parts with an electrical model. Each hole takes one lead (`maxConnections: 1`).
+
+### D34 · Plugging a lead in is a wire to that hole
+
+No new placement mechanism: pushing a resistor leg into row 12 is a wire from
+`R1.a` to `BB1.row12_a`, so it syncs, diffs, merges and undoes like any wire.
+`hole_occupancy` now also flags any pin with more wires than its
+`maxConnections`, which is how two leads in one hole is caught.
+
+### D35 · "Connected" means sharing a net with another real pin
+
+A lead alone in an empty breadboard row is wired but connected to nothing. The
+required-pin and floating-pin checks now use `connectedPins()` — the pin's net
+must contain a pin of another non-interconnect component (or the same one), and
+breadboard holes do not count. Interconnects never bridge the ground walk (a
+board carries current along a row, not across rows) and are never reported as
+ungrounded. Optional pins (empty holes, unused header pins) are exempt from
+`floating_pin` — unless a pin mode gives the pin a job, which it cannot do unwired.
+
+### D36 · `pin_function_mismatch` is one kind with four generic checks
+
+1. A pin mode whose `requires` is not in the pin's `functions` (PWM on D2).
+2. A driving mode (`drives: true`) on a net with a power-/ground-only pin.
+3. Two driving pins on one net.
+4. Convention: an interconnect strip marked `power` or `ground` holding the
+   opposite return path or an output. The circuit works, so it uses
+   `rules.conventionSeverity` (default `warning`) instead of the kind's severity,
+   and is skipped for an output already reported by check 2.
+
+A mode the pin cannot do stays **selectable** in the inspector, labelled "not on
+this pin": hiding it would hide the rule the P2 acceptance test exercises.
+
+### D37 · The Arduino is a configurable source/sink; its netlist waits for P2
+
+No sketch runs (the prompt's scope note). `spice.generatedFrom: pinModes` is
+where the P2 netlist generator will build the subcircuit from the pin modes;
+until that generator exists, nothing renders it, and simulation-backed checks
+stay `pending` exactly as for every other part.
+
+The pin list is the full Uno R3 header set — D0–D13, A0–A5, 5V, 3.3V, VIN and
+three GND — not the partial list in the prompt, and A0–A5 also list
+`digital_io` because the board supports that. The per-I/O-pin rating is the
+Arduino-published 20 mA, not the ATmega328P's 40 mA absolute maximum.
+
+**Open risk, as D21:** these figures were written from the published specs
+from memory, not re-read from the PDFs. Verify before P2 enforces them.
+
+### D38 · Asset provenance is recorded; no third-party assets were fetched
+
+Every existing symbol is `source: drawn in-repo, license: internal`, and every
+3D model is a labelled placeholder box — what the AR view already draws. The
+prompt's Fritzing SVGs and Sketchfab/Poly Pizza models were not downloaded:
+that needs your go-ahead and a licence check per model. The licence field is an
+enum, the schema refuses a CC-BY/CC-BY-SA/MIT asset without an attribution line,
+and `ASSETS.md` is generated from the part files (`pnpm assets:report`). A test
+regenerates it and fails if the committed copy is stale; CI prints it.
+
+### D39 · The 2D canvas connects any pin to any pin
+
+**Pre-existing bug found while testing this in the browser:** every pin is a
+React Flow `source` handle, and React Flow's default strict mode only accepts
+source → target, so dragging from one pin to another never made a wire. Verified
+by switching the mode back and forth with the same drag. The canvas now uses
+`ConnectionMode.Loose`; a wire has no direction anyway.
+
+Boards render beneath the parts plugged into them (node `zIndex` 0 vs 1, and
+`elevateNodesOnSelect` off so selecting a board does not cover its parts). A
+negative z-index was tried first and put the board behind React Flow's pane,
+where it could not be clicked.
+
+### D40 · Two layout tunables
+
+`ui.boardPitchPx` (one hole pitch on screen) and `ui.pinRowPx` (vertical room
+per pin on edge-pinned nodes, so the 26-pin Arduino grows instead of overlapping).
+
+### D41 · The Arduino is a board, not a card — by data, not by code
+
+The Uno rendered as a card with 26 pins down its edges and a small schematic
+glyph in the middle, which is what "there are no graphics for the Arduino" meant
+in practice. Nothing in the canvas needed changing: `PartNode` already picks the
+hole-grid layout for any part that declares `footprint.gridSize` and gives every
+pin a `pinLayout` position, which until now only the breadboard did. The Uno now
+declares both, so it draws at true scale (27 x 21 hole pitches, the real
+2.7 x 2.1 in board) with a wirable hole at each header pin.
+
+Positions follow the Uno R3 header arrangement, including the 0.05 in offset
+between D7 and D8. **Header positions the part does not model electrically —
+IOREF, RESET, AREF, SDA and SCL — are left out of both the layout and the
+artwork.** Drawing them would put holes on screen that nothing can connect to;
+the rule is that every hole drawn is a hole that can be wired. Adding them later
+is a pin entry plus a `pinLayout` entry, no code.
+
+The board artwork is drawn in-repo, in the same units as the grid, so the two
+cannot drift: the SVG viewBox is `0 0 27 21` and one user unit is one hole pitch,
+exactly as the breadboard's is. No Arduino logo is reproduced — the silkscreen is
+text only.
+
+### D42 · Breadboard view for every part, not schematic glyphs
+
+The twelve discrete parts were thin single-colour schematic symbols squashed into
+a fixed 56 x 30 px box, next to a full-colour breadboard. They are now drawn as
+the physical component (colour bands, polarity stripes, TO-92 and DIP bodies,
+silver leads), per the prompt's Tinkercad-style breadboard-view aesthetic, each
+in its own viewBox at its real proportions. The CSS sizes artwork by height with
+a width clamp instead of forcing one box, so nothing is stretched.
+
+All fourteen symbols stay `drawn in-repo / internal`: no Fritzing or Sketchfab
+asset was fetched, so D38 still stands and `ASSETS.md` is unchanged.
+
+**Known gap:** artwork is static. A part's parameters do not reach its symbol, so
+a blue LED still draws red and a 10 kΩ resistor carries the same colour bands as
+a 330 Ω one. Making artwork parameter-aware needs code that passes component
+params into the symbol — a real feature, not a drawing fix, and not attempted
+here.
+
+**Still open:** 3D. Every part's `visual.model3d` is still `placeholder: box`, so
+AR continues to draw labelled boxes. This change was 2D only.

@@ -1,0 +1,81 @@
+id: breadboard-full
+version: 1
+name: Breadboard (830)
+category: Prototyping
+description: Full-size solderless breadboard. Each 5-hole row is one net, and each rail runs the length.
+labelPrefix: BB
+source: >-
+  830 tie-point solderless breadboard, the common full-size format (e.g. BusBoard
+  Prototype Systems BB830): 630 terminal tie points in 63 rows, each row two
+  5-hole strips (a-e and f-j) either side of a 0.3 in centre channel, plus 200
+  distribution tie points in four 50-hole power rails; 0.1 in (2.54 mm) pitch,
+  about 165 x 55 mm. Rails are modelled as continuous along the whole length.
+  Some boards print a break in the rail line at the centre, meaning the two
+  halves are separate; for those, split each rail into two groups here. This
+  part has no electrical model and no ratings of its own: it only joins pins.
+
+# Holes are not listed one by one. The loader expands these templates into
+# concrete pins (row12_a, power_pos_top_7, ...) and ties each group into one net.
+# Grid units are hole pitches, origin top-left, y running down.
+internalGroups:
+  - type: rail
+    name: power_pos_top
+    label: Top + rail
+    holes: 50
+    functions: [power]
+    maxConnections: 1
+    origin: [3.5, 1.5]
+    step: [1, 0]
+    gapEvery: 5
+  - type: rail
+    name: power_neg_top
+    label: Top − rail
+    holes: 50
+    functions: [ground]
+    maxConnections: 1
+    origin: [3.5, 2.5]
+    step: [1, 0]
+    gapEvery: 5
+  - type: row
+    columns: [a, b, c, d, e]
+    rows: { from: 1, to: 63 }
+    maxConnections: 1
+    origin: [1.5, 5]
+    rowStep: [1, 0]
+    columnStep: [0, 1]
+  - type: row
+    columns: [f, g, h, i, j]
+    rows: { from: 1, to: 63 }
+    maxConnections: 1
+    origin: [1.5, 12]
+    rowStep: [1, 0]
+    columnStep: [0, 1]
+  - type: rail
+    name: power_pos_bottom
+    label: Bottom + rail
+    holes: 50
+    functions: [power]
+    maxConnections: 1
+    origin: [3.5, 18.5]
+    step: [1, 0]
+    gapEvery: 5
+  - type: rail
+    name: power_neg_bottom
+    label: Bottom − rail
+    holes: 50
+    functions: [ground]
+    maxConnections: 1
+    origin: [3.5, 19.5]
+    step: [1, 0]
+    gapEvery: 5
+
+visual:
+  symbol2d: { path: symbols/breadboard-full.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
+  accent: '#8c959f'
+  # 165 x 53 mm on the bench at 2 cm per grid unit.
+  size: [8.25, 2.65]
+
+footprint:
+  holeSpacingMm: 2.54
+  gridSize: [65, 21]

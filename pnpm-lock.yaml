@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@circuitgit/parts':
+        specifier: workspace:*
+        version: link:packages/parts
       '@circuitgit/schema':
         specifier: workspace:*
         version: link:packages/schema

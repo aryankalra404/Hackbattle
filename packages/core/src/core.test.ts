@@ -3,12 +3,18 @@ import { randomUUID } from 'node:crypto';
 import { emptySnapshot, pinRef, type CircuitSnapshot } from '@circuitgit/schema';
 import { loadPartLibraryFromDisk } from '@circuitgit/parts/node';
 import { canonicalJson, electricalHash, shortHash, snapshotHash } from './canonical.js';
-import { computeNets, compareNets, floatingPins } from './nets.js';
+import {
+  componentsWithoutGroundPath,
+  compareNets,
+  computeNets,
+  connectedPins,
+  floatingPins,
+} from './nets.js';
 import { diffSnapshots, isEmptyDiff, summarizeDiff } from './diff.js';
 import { HeadMovedError, Repository, RepositoryError } from './repository.js';
 
 const library = loadPartLibraryFromDisk();
-const pinsOf = (ref: string) => library.get(ref).pins.map((pin) => pin.id);
+const pinsOf = library.topologyOf;
 
 /** A supply, a resistor and an LED in series. Built from library data. */
 function seriesCircuit(): { snapshot: CircuitSnapshot; ids: Record<string, string> } {
@@ -150,6 +156,108 @@ describe('nets', () => {
     const after = computeNets(cut, pinsOf);
 
     expect(compareNets(before, after).split.length).toBeGreaterThan(0);
+  });
+});
+
+describe('internal groups', () => {
+  /** A supply and an LED plugged into a breadboard; library data, not special cases. */
+  function onBreadboard() {
+    const { snapshot } = seriesCircuit();
+    const board = randomUUID();
+    const led = randomUUID();
+    snapshot.components[board] = { part: 'breadboard-full@1', label: 'BB1', params: {} };
+    snapshot.components[led] = { part: 'led-5mm@1', label: 'D2', params: { color: 'red' } };
+    const plug = (a: string, b: string) => {
+      snapshot.wires[randomUUID()] = { a, b, style: {} };
+    };
+    return { snapshot, board, led, plug };
+  }
+
+  it('expands the hole grid from templates', () => {
+    const board = library.get('breadboard-full');
+    // 63 rows x 10 terminal holes + 4 rails x 50 = 830 tie points.
+    expect(board.pins).toHaveLength(830);
+    expect(board.pinGroups).toHaveLength(63 * 2 + 4);
+  });
+
+  it('joins every hole in a row into one net', () => {
+    const { snapshot, board } = onBreadboard();
+    const nets = computeNets(snapshot, pinsOf);
+    const row = nets.netOfPin.get(pinRef(board, 'row12_a'));
+    for (const column of ['b', 'c', 'd', 'e']) {
+      expect(nets.netOfPin.get(pinRef(board, `row12_${column}`))).toBe(row);
+    }
+    // The centre channel separates the two halves of a row.
+    expect(nets.netOfPin.get(pinRef(board, 'row12_f'))).not.toBe(row);
+    // Neighbouring rows are separate.
+    expect(nets.netOfPin.get(pinRef(board, 'row13_a'))).not.toBe(row);
+  });
+
+  it('runs a rail the whole length', () => {
+    const { snapshot, board } = onBreadboard();
+    const nets = computeNets(snapshot, pinsOf);
+    expect(nets.netOfPin.get(pinRef(board, 'power_pos_top_1'))).toBe(
+      nets.netOfPin.get(pinRef(board, 'power_pos_top_50')),
+    );
+    expect(nets.netOfPin.get(pinRef(board, 'power_pos_top_1'))).not.toBe(
+      nets.netOfPin.get(pinRef(board, 'power_neg_top_1')),
+    );
+  });
+
+  it('connects two leads through a row, with no wire between them', () => {
+    const { snapshot, board, led, plug } = onBreadboard();
+    const resistor = Object.entries(snapshot.components).find(
+      ([, component]) => component.label === 'R1',
+    )?.[0];
+    if (!resistor) throw new Error('fixture resistor missing');
+    plug(pinRef(led, 'anode'), pinRef(board, 'row20_a'));
+    plug(pinRef(resistor, 'b'), pinRef(board, 'row20_e'));
+
+    const nets = computeNets(snapshot, pinsOf);
+    expect(nets.netOfPin.get(pinRef(led, 'anode'))).toBe(nets.netOfPin.get(pinRef(resistor, 'b')));
+  });
+
+  it('ties declared pins together with a pins group', () => {
+    const snapshot = emptySnapshot('Header');
+    const board = randomUUID();
+    snapshot.components[board] = { part: 'arduino-uno-r3@1', label: 'U1', params: {} };
+    const nets = computeNets(snapshot, pinsOf);
+    expect(nets.netOfPin.get(pinRef(board, 'gnd1'))).toBe(nets.netOfPin.get(pinRef(board, 'gnd3')));
+    expect(nets.netOfPin.get(pinRef(board, 'gnd1'))).not.toBe(
+      nets.netOfPin.get(pinRef(board, 'v5')),
+    );
+  });
+
+  it('does not count a lead alone in a row as connected', () => {
+    const { snapshot, board, led, plug } = onBreadboard();
+    plug(pinRef(led, 'anode'), pinRef(board, 'row40_a'));
+    const nets = computeNets(snapshot, pinsOf);
+    expect(connectedPins(snapshot, nets, pinsOf).has(pinRef(led, 'anode'))).toBe(false);
+  });
+
+  it('never bridges ground across rows of an interconnect', () => {
+    const { snapshot, board, led, plug } = onBreadboard();
+    // Ground reaches row 1; the LED sits in row 2. The board must not carry it over.
+    const supply = Object.entries(snapshot.components).find(
+      ([, component]) => component.label === 'V1',
+    )?.[0];
+    if (!supply) throw new Error('fixture supply missing');
+    plug(pinRef(supply, 'neg'), pinRef(board, 'row1_a'));
+    plug(pinRef(led, 'cathode'), pinRef(board, 'row2_a'));
+
+    const nets = computeNets(snapshot, pinsOf);
+    const stranded = componentsWithoutGroundPath(snapshot, nets, pinsOf);
+    expect(stranded).toContain(led);
+    expect(stranded).not.toContain(board); // interconnects are never reported
+
+    // Moving the lead into row 1 grounds it.
+    const fixed = structuredClone(snapshot);
+    for (const [id, wire] of Object.entries(fixed.wires)) {
+      if (wire.b === pinRef(board, 'row2_a'))
+        fixed.wires[id] = { ...wire, b: pinRef(board, 'row1_b') };
+    }
+    const fixedNets = computeNets(fixed, pinsOf);
+    expect(componentsWithoutGroundPath(fixed, fixedNets, pinsOf)).not.toContain(led);
   });
 });
 

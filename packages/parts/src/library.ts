@@ -1,4 +1,5 @@
 import {
+  isInterconnect,
   partDefinitionSchema,
   partRef,
   parsePartRef,
@@ -15,6 +16,9 @@ import {
  * "which state is it in" — without any engine ever naming a part.
  */
 
+/** Structurally the `PartTopology` the core net builder takes. */
+export type PartTopology = { pins: string[]; groups: string[][]; interconnect: boolean };
+
 export class PartLibraryError extends Error {
   constructor(message: string) {
     super(message);
@@ -27,6 +31,8 @@ export class PartLibrary {
   private readonly byRef = new Map<string, PartDefinition>();
   /** Latest version per id. */
   private readonly latest = new Map<string, PartDefinition>();
+  /** Definitions are immutable, so each topology is built once. */
+  private readonly topologies = new Map<string, PartTopology>();
 
   constructor(definitions: readonly PartDefinition[]) {
     for (const part of definitions) {
@@ -95,6 +101,24 @@ export class PartLibrary {
       return false;
     }
   }
+
+  /**
+   * What the net builder needs for a part ref: its pins, the pin sets it joins
+   * internally, and whether it is a pure interconnect. Undefined when unknown.
+   */
+  topologyOf = (ref: string): PartTopology | undefined => {
+    const cached = this.topologies.get(ref);
+    if (cached) return cached;
+    if (!this.has(ref)) return undefined;
+    const part = this.get(ref);
+    const topology = {
+      pins: part.pins.map((pin) => pin.id),
+      groups: part.pinGroups,
+      interconnect: isInterconnect(part),
+    };
+    this.topologies.set(ref, topology);
+    return topology;
+  };
 
   /**
    * Map a pin id across a part-library version change, using the definition's

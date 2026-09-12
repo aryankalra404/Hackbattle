@@ -20,6 +20,8 @@ const store = createXRStore();
 /** Metres per 2D layout unit. A 200px gap on the canvas becomes 20cm on the bench. */
 const SCALE = 0.001;
 const BENCH_Y = config.ar.workbenchDefaultHeightMetres;
+/** Metres per `visual.size` grid unit, for the labelled placeholder bodies. */
+const PART_UNIT = 0.02;
 
 type Placed = {
   id: string;
@@ -52,7 +54,7 @@ function PartBody({ placed, faulty }: { placed: Placed; faulty: boolean }) {
   return (
     <group position={placed.position}>
       <mesh castShadow>
-        <boxGeometry args={[w * 0.02, 0.012, h * 0.02]} />
+        <boxGeometry args={[w * PART_UNIT, 0.012, h * PART_UNIT]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -74,23 +76,44 @@ function PartBody({ placed, faulty }: { placed: Placed; faulty: boolean }) {
   );
 }
 
+/**
+ * Where a wire meets a pin. A part that puts its pins on a hole grid gets the
+ * hole's real spot on its top face; anything else is joined at its centre until
+ * it has a 3D model with pin anchors.
+ */
+function pinPoint(placed: Placed, pinId: string): [number, number, number] {
+  const grid = placed.part.footprint.gridSize;
+  const hole = placed.part.pinLayout[pinId];
+  if (!grid || !hole) return placed.position;
+  const [w, h] = placed.part.visual.size;
+  return [
+    placed.position[0] + (hole[0] / grid[0] - 0.5) * w * PART_UNIT,
+    placed.position[1] + 0.006,
+    placed.position[2] + (hole[1] / grid[1] - 0.5) * h * PART_UNIT,
+  ];
+}
+
 function Wires({ snapshot, placed }: { snapshot: CircuitSnapshot; placed: Placed[] }) {
   const byId = useMemo(() => new Map(placed.map((item) => [item.id, item])), [placed]);
 
   return (
     <>
       {Object.entries(snapshot.wires).flatMap(([id, wire]) => {
-        const a = byId.get(parsePinRef(wire.a).componentId);
-        const b = byId.get(parsePinRef(wire.b).componentId);
-        if (!a || !b) return [];
+        const endA = parsePinRef(wire.a);
+        const endB = parsePinRef(wire.b);
+        const placedA = byId.get(endA.componentId);
+        const placedB = byId.get(endB.componentId);
+        if (!placedA || !placedB) return [];
+        const a = pinPoint(placedA, endA.pinId);
+        const b = pinPoint(placedB, endB.pinId);
 
         const mid: [number, number, number] = [
-          (a.position[0] + b.position[0]) / 2,
-          (a.position[1] + b.position[1]) / 2 + 0.01,
-          (a.position[2] + b.position[2]) / 2,
+          (a[0] + b[0]) / 2,
+          (a[1] + b[1]) / 2 + 0.01,
+          (a[2] + b[2]) / 2,
         ];
-        const dx = b.position[0] - a.position[0];
-        const dz = b.position[2] - a.position[2];
+        const dx = b[0] - a[0];
+        const dz = b[2] - a[2];
         const length = Math.hypot(dx, dz);
         if (length === 0) return [];
 

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import {
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   MiniMap,
   ReactFlow,
@@ -16,7 +17,7 @@ import '@xyflow/react/dist/style.css';
 import { faultyComponentIds, faultyPinRefs } from '@circuitgit/rules';
 import { partLibrary } from '../state/library.js';
 import { useStore } from '../state/store.js';
-import { PartNode } from './PartNode.js';
+import { holeGrid, PartNode } from './PartNode.js';
 import { formatParamSummary } from '../format.js';
 
 const nodeTypes = { part: PartNode };
@@ -50,6 +51,8 @@ function CanvasInner() {
             type: 'part',
             position: snapshot.layout['2d'][id] ?? { x: 0, y: 0 },
             selected: selection === id,
+            // Boards are what parts plug into, so they always sit underneath.
+            zIndex: holeGrid(part) ? 0 : 1,
             data: {
               part,
               componentId: id,
@@ -135,6 +138,11 @@ function CanvasInner() {
         onConnect={onConnect}
         onEdgesDelete={(deleted) => deleted.forEach((edge) => removeWire(edge.id))}
         onPaneClick={() => select(undefined)}
+        // Keeps the stacking above: a selected board must not cover its parts.
+        elevateNodesOnSelect={false}
+        // A wire has no direction and every pin is the same kind of handle, so
+        // any pin may connect to any other. Strict mode would refuse them all.
+        connectionMode={ConnectionMode.Loose}
         nodesDraggable={!locked}
         nodesConnectable={!locked}
         edgesReconnectable={!locked}

@@ -12,8 +12,8 @@ source: >-
   approximations of the datasheet VF-IF curve, not values printed in it.
 
 pins:
-  - { id: anode, name: Anode }
-  - { id: cathode, name: Cathode }
+  - { id: anode, name: Anode, functions: [analog_io] }
+  - { id: cathode, name: Cathode, functions: [analog_io] }
 requiredPins: [anode, cathode]
 polarized: { positive: anode, negative: cathode }
 
@@ -56,7 +56,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/led-5mm.svg
+  symbol2d: { path: symbols/led-5mm.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   glowOnState: on
   accent: '#1a7f37'
   size: [2, 1]

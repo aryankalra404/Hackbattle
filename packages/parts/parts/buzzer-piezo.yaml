@@ -11,8 +11,8 @@ source: >-
   small-signal equivalent for a piezo diaphragm, not a datasheet model.
 
 pins:
-  - { id: pos, name: '+' }
-  - { id: neg, name: '-' }
+  - { id: pos, name: '+', functions: [analog_io] }
+  - { id: neg, name: '-', functions: [analog_io] }
 requiredPins: [pos, neg]
 polarized: { positive: pos, negative: neg }
 
@@ -49,7 +49,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/buzzer-piezo.svg
+  symbol2d: { path: symbols/buzzer-piezo.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   glowOnState: sounding
   accent: '#bf3989'
   size: [2, 2]

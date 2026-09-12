@@ -118,8 +118,8 @@ version: 2
 labelPrefix: D
 source: '<datasheet or standard-model citation for the simulation model and ratings>'
 pins:
-  - { id: anode, name: Anode }
-  - { id: cathode, name: Cathode }
+  - { id: anode, name: Anode, functions: [analog_io] }
+  - { id: cathode, name: Cathode, functions: [analog_io] }
 requiredPins: [anode, cathode]
 polarized: { positive: anode, negative: cathode }
 params:
@@ -134,10 +134,45 @@ ratings: # read by the generic rating check
 states: # how simulation results become UI states (data, not code)
   - { state: on, when: { quantity: current, through: [anode, cathode], gt: <config ref or value> } }
   - { state: off, otherwise: true }
-visual: { symbol2d: symbols/led.svg, model3d: models/led.glb, glowOnState: on }
+visual:
+  symbol2d: { path: symbols/led.svg, source: 'fritzing-parts@<commit>', license: CC-BY-SA-4.0 }
+  model3d: { path: models/led.glb, source: procedural, license: internal }
+  glowOnState: on
+  pinAnchors3d: { anode: Anode_Lead, cathode: Cathode_Lead } # names of child transforms on model3d
 footprint: { breadboard: { pins: { anode: [0, 0], cathode: [1, 0] } } }
 pinMigrations: { '1': { '+': anode, '-': cathode } }
 ```
+
+**`pins[].functions`** declares what a pin electrically *is*, generically, so rules/UI never special-case a part by name:
+
+| Function | Meaning |
+| --- | --- |
+| `power` | Supplies a fixed voltage (carries a `voltage` field) |
+| `ground` | Reference/return path |
+| `analog_io` | Ordinary two-terminal analog leg (resistor, LED, capacitor legs) |
+| `digital_io` | Can be driven or read as a logic high/low |
+| `pwm` | Can output a pulse-width-modulated signal |
+| `analog_in` | Can read a variable voltage (e.g. a potentiometer wiper, an ADC pin) |
+| `uart_tx` / `uart_rx`, `i2c_sda` / `i2c_scl`, `spi_*` | Named serial protocol roles, for pins that support them |
+
+A pin can list more than one function (e.g. an Arduino digital pin that also supports `pwm`); the currently active one is a user-set `mode` param, validated against the pin's allowed list (see the Arduino example below). This is what "configuring which port does what" means in the data model — never a code branch per board.
+
+**`visual`** always records where each asset came from and its license, so a CI step can print an attribution/license report, and `pinAnchors3d` maps each electrical pin ID to the named child transform on the 3D model that both the AR wire-drawing code and the sync/projection layer key off of — see `SYNC_IMPLEMENTATION_PLAN.md` §4.1.
+
+### 5.1.1 Graphics: sourcing and creation
+
+No component graphics are drawn by hand as one-offs inside the app; every asset is a file referenced by `visual`, from one of these sources, matching the Tinkercad-style "breadboard view" aesthetic:
+
+| Component class | 2D symbol source | 3D model source |
+| --- | --- | --- |
+| Small generic parts (resistor, LED, capacitor, switch, diode, buzzer) | [Fritzing parts library](https://github.com/fritzing/fritzing-parts) SVGs (`svg/core/breadboard/`), restyled to the app's palette — CC BY-SA 4.0, attribute per part | Built procedurally (primitives: cylinders, leads, domes) — no licensing risk, and pin-anchor placement is exact by construction |
+| Hero boards (breadboard, Arduino Uno) | Fritzing SVGs, or flat re-drawings matching them | Downloaded from Sketchfab / Poly Pizza (search "breadboard low poly", "Arduino Uno") — verify CC0/CC-BY license per model before shipping |
+| Sensors/actuators added later (servo, ultrasonic, potentiometer knob) | Fritzing if available, else drawn to match the existing symbol style | Procedural for simple shapes; downloaded for recognizable hero parts |
+
+Rules:
+- Every downloaded asset's license is recorded in `visual.*.license` and checked by a CI script that fails the build if a required attribution is missing.
+- Procedural 3D parts are generated once (a small builder script per shape family, e.g. "axial two-lead part") and saved as `.glb`/prefab, not regenerated at runtime, so `pinAnchors3d` stays stable across builds.
+- A part is never shipped without both a 2D symbol and a 3D model — if a real asset isn't ready, use a labeled placeholder box/circle rather than silently reusing another part's graphic.
 
 The initial library needs at least these parts:
 
@@ -149,8 +184,85 @@ The initial library needs at least these parts:
 - NPN transistor
 - 555 timer (subcircuit model)
 - buzzer
+- **full-size breadboard** (see 5.1.2 — internal row/rail connectivity, not just a footprint)
+- **Arduino Uno** (see 5.1.3 — a real microcontroller board, so pin functions and modes are exercised for real)
 
 Every simulation model and rating must cite its source in `source`. Never invent numbers.
+
+### 5.1.2 Breadboard: internal connectivity
+
+A breadboard's rows and rails are internally wired together, so plugging a lead into any hole in a row electrically joins it to every other hole in that row — this has to be modeled explicitly or wiring behaves wrong:
+
+```yaml
+id: breadboard-full
+labelPrefix: BB
+pins: [] # holes aren't named individually; they're generated from `layout.holes` at load time
+internalGroups:
+  # each entry is a template applied per column-group / rail; the loader expands these into
+  # concrete pin IDs (e.g. row-12-a..e) from the breadboard's physical hole grid
+  - { type: row, columns: [a, b, c, d, e], rows: [1, '...', 30] }
+  - { type: row, columns: [f, g, h, i, j], rows: [1, '...', 30] }
+  - { type: rail, name: power_pos_top, functions: [power] }
+  - { type: rail, name: power_neg_top, functions: [ground] }
+  - { type: rail, name: power_pos_bottom, functions: [power] }
+  - { type: rail, name: power_neg_bottom, functions: [ground] }
+visual:
+  symbol2d: { path: symbols/breadboard.svg, source: 'fritzing-parts@<commit>', license: CC-BY-SA-4.0 }
+  model3d: { path: models/breadboard.glb, source: 'sketchfab:<url>', license: CC-BY-4.0 }
+footprint: { holeSpacing: '2.54mm', gridOrigin: [0, 0] }
+```
+
+The generic `net-builder` in `packages/core` reads `internalGroups` for any part (not just this one) and adds every pin in a group to the same net automatically — this is the same mechanism a future "IC socket" or "power rail strip" part would reuse, with no new engine code.
+
+### 5.1.3 Arduino Uno: a real multi-function pin board
+
+This is the first part that actually exercises `pins[].functions` and pin `mode`, since most of its pins do more than one job:
+
+```yaml
+id: arduino-uno-r3
+version: 1
+labelPrefix: U
+source: '<Arduino Uno R3 datasheet/reference citation>'
+pins:
+  - { id: D0, name: 'Digital 0 (RX)', functions: [digital_io, uart_rx] }
+  - { id: D1, name: 'Digital 1 (TX)', functions: [digital_io, uart_tx] }
+  - { id: D2, name: 'Digital 2', functions: [digital_io] }
+  - { id: D3, name: 'Digital 3', functions: [digital_io, pwm] }
+  - { id: D5, name: 'Digital 5', functions: [digital_io, pwm] }
+  - { id: D6, name: 'Digital 6', functions: [digital_io, pwm] }
+  - { id: D9, name: 'Digital 9', functions: [digital_io, pwm] }
+  - { id: D10, name: 'Digital 10', functions: [digital_io, pwm] }
+  - { id: D11, name: 'Digital 11', functions: [digital_io, pwm] }
+  - { id: A0, name: 'Analog 0', functions: [analog_in] }
+  - { id: A1, name: 'Analog 1', functions: [analog_in] }
+  - { id: A4, name: 'Analog 4 (SDA)', functions: [analog_in, i2c_sda] }
+  - { id: A5, name: 'Analog 5 (SCL)', functions: [analog_in, i2c_scl] }
+  - { id: '5V', name: '5V out', functions: [power], voltage: 5 }
+  - { id: '3V3', name: '3.3V out', functions: [power], voltage: 3.3 }
+  - { id: VIN, name: 'VIN', functions: [power] }
+  - { id: GND1, name: 'GND', functions: [ground] }
+  - { id: GND2, name: 'GND', functions: [ground] }
+params:
+  # per-pin runtime configuration — this is "which port has which fn", set by the user,
+  # not hard-coded per board. The rule engine validates each mode against that pin's `functions`.
+  pinModes:
+    type: map
+    keyedBy: pins # one entry per digital/analog pin listed above
+    valueSchema:
+      mode: { type: enum, values: [digital_out, digital_in, pwm, analog_in, disabled], default: disabled }
+      value: { type: number, description: 'HIGH/LOW as 0/1, PWM duty 0-255, or n/a for analog_in' }
+spice:
+  element: X # modeled as a subcircuit: a HIGH/LOW/PWM source per configured pin
+  template: 'X{label} {...configured pins...} arduino_uno_subckt'
+  models: { default: '<subcircuit generated from pinModes at simulate-time — see note below>' }
+visual:
+  symbol2d: { path: symbols/arduino-uno.svg, source: 'fritzing-parts@<commit>', license: CC-BY-SA-4.0 }
+  model3d: { path: models/arduino-uno.glb, source: 'sketchfab:<url>', license: CC-BY-4.0 }
+  pinAnchors3d: { D0: Pin_D0, D1: Pin_D1, A0: Pin_A0, '5V': Pin_5V, GND1: Pin_GND1, '...': '...' }
+footprint: { breadboard: null } # sits beside the breadboard, jumper-wired to it, not plugged into holes
+```
+
+**Scope note — read before building this:** the Arduino here is a **configurable signal source/sink**, not a running microcontroller. Users set each pin's mode and output value (or read its simulated analog input) through the `pinModes` params UI — generated automatically from the schema above, same as any other part's params panel. **Actually compiling and executing an Arduino sketch (AVR emulation) is out of scope**; it's a large, separate project (an instruction-level emulator) and would violate rule 2.7 (physics/behavior must stay deterministic and simple, not become a second simulator-inside-a-simulator). If real sketch execution is wanted later, treat it as its own phase with its own design doc, not folded into this one.
 
 ### 5.2 Circuit snapshot
 
@@ -314,6 +426,7 @@ The check kinds are generic code; the part definitions drive where they apply.
 | `power_budget`             | Total load vs what the source can supply |
 | `hole_occupancy`           | Two things in one breadboard hole        |
 | `user_test_failed`         | A user-defined test in the circuit fails |
+| `pin_function_mismatch`    | A wire or configured `mode` uses a function not in that pin's `functions` list (e.g. driving a digital signal into a `ground`-only pin, or setting `pinModes.D2.mode` to `pwm` on a pin whose `functions` don't include `pwm`) |
 
 - Rule files (data) set severity, which kinds are enabled, and parameters.
 - Findings are structured: `{ kind, severity, componentIds, pinIds, measured, limit, unit }`.
@@ -535,7 +648,7 @@ The check kinds are generic code; the part definitions drive where they apply.
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **P0 Foundation**             | Monorepo, strict TypeScript, lint, Vitest, config loader with schema, `.env.example`, CI                                                                          | `pnpm check` (lint + typecheck + test) passes                                                                                                           |
 | **P1 Core + version control** | Schemas, part library loader + initial parts, hashing, diff, commit graph, branches, merge (structural + connectivity layers), restore/undo/cherry-pick/rebase    | Every catalogue row C1–C23 and C32–C37 has at least one test; property tests pass; the no-part-IDs-in-engine-code test passes                           |
-| **P2 Checks**                 | Rule engine, SimulationEngine + built-in DC solver + ngspice, component states, electrical conflicts C24–C31 wired into merge                                     | The C24 case is blocked by the **generic** rating check with no LED-specific code: ancestor 330Ω / 5V; A changes R1 to 150Ω; B changes the supply to 9V |
+| **P2 Checks**                 | Rule engine, SimulationEngine + built-in DC solver + ngspice, component states, `pin_function_mismatch`, electrical conflicts C24–C31 wired into merge            | The C24 case is blocked by the **generic** rating check with no LED-specific code: ancestor 330Ω / 5V; A changes R1 to 150Ω; B changes the supply to 9V; separately, setting an Arduino pin's `mode` to `pwm` on a non-PWM pin is caught by the same generic `pin_function_mismatch` check used for every other part |
 | **P3 Backend**                | Database migrations + row-level security, API (commit, compare-and-swap branch updates, merge sessions, checks), live updates, LLM gateway with audit log + cache | API integration tests pass; a gateway failure shows as `unavailable` in the response, never as a fallback message                                       |
 | **P4 LLM jobs + eval**        | All 6 jobs, comparator, prompt templates, eval harness + report                                                                                                   | Eval report generated and meeting config thresholds; blind test passes; no nonexistent IDs reach the UI                                                 |
 | **P5 2D app**                 | Section 9.1                                                                                                                                                       | In a browser, the full loop works: build → detect → test → commit → branch → merge with real conflicts → restore / undo / cherry-pick                   |
@@ -583,3 +696,4 @@ With a team, P5 and P6 can start once P1's schemas are frozen, working against t
 - `.env.example`, `config/default.yaml`.
 - The latest eval report.
 - A seed script that loads the curated library circuits into a demo project.
+- An asset attribution/license report (generated by CI from every part's `visual.*.license`/`source` fields, per §5.1.1).

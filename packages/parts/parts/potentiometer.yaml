@@ -10,9 +10,9 @@ source: >-
   standard ideal potentiometer model, not a datasheet model.
 
 pins:
-  - { id: cw, name: CW end }
-  - { id: wiper, name: Wiper }
-  - { id: ccw, name: CCW end }
+  - { id: cw, name: CW end, functions: [analog_io] }
+  - { id: wiper, name: Wiper, functions: [analog_io] }
+  - { id: ccw, name: CCW end, functions: [analog_io] }
 requiredPins: [cw, ccw]
 
 params:
@@ -65,7 +65,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/potentiometer.svg
+  symbol2d: { path: symbols/potentiometer.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#0969da'
   size: [2, 2]
 

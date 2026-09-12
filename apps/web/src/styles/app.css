@@ -467,8 +467,9 @@
 }
 
 .part-chip__symbol svg {
-  width: 30px;
+  width: auto;
   height: 22px;
+  max-width: 34px;
 }
 
 .part-chip__text {
@@ -575,16 +576,25 @@
   display: grid;
   place-items: center;
   padding: 4px 30px 10px;
-  min-height: 46px;
+  /* Many-pin parts grow so their pin labels never overlap. */
+  min-height: max(54px, calc(var(--pin-rows, 1) * var(--pin-row-px, 15px)));
+}
+
+/* Tall nodes carry longer pin names ("D11 ~ (MOSI)"), so leave room for them. */
+.part-node__body--tall {
+  padding-inline: 78px;
 }
 
 .part-node__symbol {
   color: var(--part-accent, var(--fg-muted));
 }
 
+/* Sized by height so each part keeps the proportions its artwork was drawn at;
+   the width clamp stops a long axial part from stretching the node. */
 .part-node__symbol svg {
-  width: 56px;
-  height: 30px;
+  width: auto;
+  height: 40px;
+  max-width: 100px;
 }
 
 .part-node__symbol--missing {
@@ -655,6 +665,54 @@
 }
 
 .react-flow__handle.pin--ground {
+  border-color: var(--fg);
+  background: var(--fg);
+}
+
+/* ---- hole-grid node (breadboard) ----------------------------------------- */
+
+.part-node--board {
+  border-top-width: 1px;
+}
+
+.board {
+  position: relative;
+  margin: 0 6px 6px;
+}
+
+.board__art,
+.board__art svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.react-flow__handle.hole {
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  min-height: 7px;
+  border: 1px solid transparent;
+  border-radius: 1.5px;
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.react-flow__handle.hole:hover,
+.react-flow__handle.hole.connectingto,
+.react-flow__handle.hole.valid {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.react-flow__handle.hole--faulty {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.react-flow__handle.hole--ground {
   border-color: var(--fg);
   background: var(--fg);
 }
@@ -776,6 +834,75 @@
 .pins__name em {
   color: var(--danger);
   font-style: normal;
+}
+
+.pins__functions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* What a pin electrically is. Supply roles get the rail colours; signals stay neutral. */
+.fn {
+  padding: 0 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  font-size: 9.5px;
+  line-height: 14px;
+  color: var(--fg-muted);
+  background: var(--bg-sunken);
+}
+
+.fn--power {
+  border-color: var(--danger-border);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.fn--ground {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pinmap {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.pinmap th,
+.pinmap td {
+  padding: 3px 4px;
+  text-align: left;
+}
+
+.pinmap thead th {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--fg-subtle);
+}
+
+.pinmap tbody th {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pinmap tbody tr + tr {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.select--sm,
+.input--sm {
+  height: 24px;
+  padding: 0 6px;
+  font-size: 11.5px;
+}
+
+.input--sm {
+  width: 64px;
 }
 
 .pins__state {

@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 30h34"/><path d="M38 30 78 12v36z" fill="currentColor" fill-opacity=".12"/><path d="M78 12v36"/><path d="M78 30h38"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40">
+  <!-- cathode band at the right, matching the pin order drawn on the node -->
+  <defs>
+    <clipPath id="dio-body">
+      <rect x="32" y="7" width="56" height="26" rx="8" />
+    </clipPath>
+  </defs>
+  <path d="M2 20h32M86 20h32" stroke="#b6bec5" stroke-width="4" stroke-linecap="round" />
+  <rect x="32" y="7" width="56" height="26" rx="8" fill="#e9cfa6" stroke="#b9975f" stroke-width="1.6" />
+  <g clip-path="url(#dio-body)">
+    <rect x="74" y="6" width="8" height="28" fill="#1b1f23" />
+    <rect x="46" y="14" width="16" height="12" rx="2" fill="#8a6a3a" opacity="0.55" />
+    <rect x="34" y="10" width="52" height="6" rx="3" fill="#ffffff" opacity="0.35" />
+  </g>
+</svg>
