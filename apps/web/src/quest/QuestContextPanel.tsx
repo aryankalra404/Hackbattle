@@ -25,9 +25,8 @@ export function QuestContextPanel() {
             disabled={!connected}
           />
           <span className="field__hint">
-            Sent to the checker with every LLM pass. It can then flag a circuit that is
-            wired correctly per-component but doesn't do what you described — not just
-            wiring mistakes.
+            CircuitDoctor reads this every time it checks your circuit, so it can catch things
+            that don't match your goal — not just loose wires or backwards parts.
           </span>
         </label>
       </div>

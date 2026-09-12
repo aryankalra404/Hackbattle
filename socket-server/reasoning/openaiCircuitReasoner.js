@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { findPirFaults } = require('../rules/pirWiring');
+const { discardFalseMissingResistorClaims } = require('../rules/ledWiring');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const TIMEOUT_MS = Number(process.env.OPENAI_TIMEOUT_MS || 8000);
@@ -46,7 +47,7 @@ Pin conventions for this Unity demo:
 - Arduino supply/role labels include GND, VIN, 5V, 3V3, AREF, RESET, IOREF, and digital pins D1, D2, etc. For this demo, a D-number pin may be the source for an LED or the signal destination for a PIR. "3V3" is the literal pin label for the board's 3.3V rail — a valid supply, not a voltage to recompute. Never rewrite, reorder, or "correct" a pin label's digits (3V3 is not 33V); copy every pin/net name verbatim from the JSON into your reasoning and into any fault issue text.
 
 Required decision protocol:
-1. Build a connectivity trace from the actual wire endpoints, then inspect each component terminal against that trace. The payload contains only components with at least one connected terminal; do not infer that omitted components are faulty or incomplete.
+1. Build a connectivity trace from the actual wire endpoints, then inspect each component terminal against that trace. The payload contains only components with at least one connected terminal; do not infer that omitted components are faulty or incomplete. Two pins are on the same net ONLY if a wire directly connects them, or a chain of wires connects them through intermediate pins — never because another, unrelated component elsewhere in the circuit happens to use a pin with the same label (e.g. a PIR's VCC being wired to 5V does not put any other component's terminal on 5V; check that specific terminal's own wire(s)). When tracing a component's terminal, list only the wire(s) whose from/to field literally equals that terminal's exact pin ID before following the chain one hop at a time — do not substitute a plausible-looking pin from elsewhere in the JSON.
 2. For an LED, verify a concrete series path: source (D-number, VIN, 5V, or 3V3) -> matching resistor endpoint -> other resistor endpoint -> that LED's *_L1 anode, plus that LED's *_L2 cathode -> GND. Wire direction does not matter. This exact path, with no contradictory connection of *_L1 to GND or *_L2 to source, is valid and MUST produce hasFault false. Do not call it faulty merely because it uses a D-number source. If the anode or cathode instead connects directly to a source or ground pin with no resistor in between, the fault is a missing series resistor — describe it that way (e.g. "led-1's anode is wired directly to 3V3 with no series resistor"). Never describe the source or ground pin itself as invalid in this case: D-number, VIN, 5V, and 3V3 are all valid LED sources per this rule, so the pin was never the problem.
 3. The PIR in this demo is an HC-SR501: verify PIR_VCC -> 5V specifically (3V3/3.3V is a fault), PIR_GND -> GND, and PIR_SIGNAL -> a non-supply, non-ground signal destination such as a D-number input. Swapped VCC/GND, signal tied to a supply/ground, or an unconnected required terminal is a fault.
 4. For a resistor, flag only an explicit issue such as disconnection, bypass, invalid value, or absence from an LED's required series path.
@@ -177,7 +178,7 @@ async function reasonAboutCircuit(circuit, intent) {
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error('OpenAI returned no diagnosis content.');
-  const diagnosis = validateDiagnosis(JSON.parse(content));
+  const diagnosis = discardFalseMissingResistorClaims(prepared.circuit, validateDiagnosis(JSON.parse(content)));
   const mergedDiagnosis = mergeDeterministicFaults(diagnosis, deterministicPirFaults);
   console.log(`[llm] received: ${JSON.stringify(mergedDiagnosis)}`);
   return mergedDiagnosis;
