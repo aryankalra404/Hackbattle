@@ -1340,8 +1340,12 @@
 
 .quest-ide {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   min-height: 0;
+}
+
+.quest-ide .panel__header-actions {
+  gap: 10px;
 }
 
 .quest-ide__hint {
@@ -1358,7 +1362,6 @@
   min-height: 0;
   padding: 14px 16px;
   border: 0;
-  border-radius: 0 0 var(--radius) var(--radius);
   resize: none;
   background: var(--bg-canvas);
   color: var(--fg);
@@ -1374,6 +1377,36 @@
 
 .quest-ide__editor::placeholder {
   color: var(--fg-subtle);
+}
+
+.quest-ide__result {
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--bg-surface);
+  font-size: 12px;
+}
+
+.quest-ide__result-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.quest-ide__result-title--error {
+  color: var(--danger, #e5484d);
+}
+
+.quest-ide__errors {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--fg-muted);
+}
+
+.quest-ide__errors--warning li {
+  color: var(--warning, #b58900);
 }
 
 .quest-panel__settings {
@@ -1525,6 +1558,15 @@
 .quest-art--led {
   width: 96px;
   height: 76px;
+}
+
+/* Driven by a live `code:simulate-result` — see QuestPartNode's useSimulatedLit. */
+.quest-art--led .quest-art__svg {
+  transition: filter 60ms linear;
+}
+
+.quest-art--led.quest-art--lit .quest-art__svg {
+  filter: drop-shadow(0 0 6px #ff4d4d) drop-shadow(0 0 16px #ff4d4d) brightness(1.5) saturate(1.4);
 }
 
 .quest-art--resistor {

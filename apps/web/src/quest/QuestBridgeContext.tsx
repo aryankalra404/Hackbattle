@@ -63,6 +63,23 @@ export type QuestChatTurn = { role: 'user' | 'assistant'; content: string };
 /** Which pane fills the centre of the workspace: the circuit mirror or the code editor. */
 export type WorkspaceView = 'circuit' | 'ide';
 
+/** One compiler error from a failed `code:simulate` compile stage. */
+export type QuestCompileError = { line: number | null; column: number | null; message: string };
+
+/** One LED the simulator found actually driven by the compiled sketch. */
+export type QuestSimulatedLed = {
+  ledId: string;
+  pin: string;
+  pattern: 'on' | 'off' | 'blink' | 'pattern';
+  onMs?: number;
+  offMs?: number;
+};
+
+/** `code:simulate-result` — compiles first; only simulates LED behavior if that succeeds. */
+export type QuestSimulateResult =
+  | { ok: false; stage: 'compile'; errors: QuestCompileError[] }
+  | { ok: true; stage: 'simulate'; leds: QuestSimulatedLed[]; warnings: string[] };
+
 type QuestBridgeState = {
   workspaceView: WorkspaceView;
   setWorkspaceView: (view: WorkspaceView) => void;
@@ -75,6 +92,9 @@ type QuestBridgeState = {
   circuit: QuestCircuit | null;
   code: string;
   setCode: (code: string) => void;
+  simulateResult: QuestSimulateResult | null;
+  simulating: boolean;
+  runSimulation: () => void;
   commits: QuestCommitSummary[];
   error: string | null;
   busy: string | null;
@@ -121,6 +141,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [circuit, setCircuit] = useState<QuestCircuit | null>(null);
   const [code, setCodeState] = useState('');
+  const [simulateResult, setSimulateResult] = useState<QuestSimulateResult | null>(null);
+  const [simulating, setSimulating] = useState(false);
   const [commits, setCommits] = useState<QuestCommitSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -147,10 +169,10 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     });
     socket.on('disconnect', () => {
       setConnected(false);
-      // A check in flight when the socket drops would otherwise leave the
-      // Checks tab stuck on "Checking..." forever — session:join resends the
-      // real result on reconnect, so this is safe to clear here.
+      // A check or a simulation in flight when the socket drops would
+      // otherwise stay stuck on "Checking..."/"Simulating..." forever.
       setChecking(false);
+      setSimulating(false);
     });
     socket.on('connect_error', (err: Error) => setError(`Could not connect: ${err.message}`));
 
@@ -168,6 +190,10 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     // this only fires for another open tab's changes or a fresh session:join.
     socket.on('code:update', (payload: { code: string }) => {
       setCodeState(payload.code);
+    });
+    socket.on('code:simulate-result', (payload: QuestSimulateResult) => {
+      setSimulateResult(payload);
+      setSimulating(false);
     });
     socket.on('commit:list', (payload: { commits: QuestCommitSummary[] }) => {
       setCommits(payload.commits);
@@ -245,6 +271,13 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     [connected, sessionId],
   );
 
+  const runSimulation = useCallback(() => {
+    if (!socketRef.current || !connected) return;
+    setSimulating(true);
+    setSimulateResult(null);
+    socketRef.current.emit('code:simulate', { sessionId });
+  }, [connected, sessionId]);
+
   const createCommit = useCallback(
     (message: string, author: string) => {
       if (!socketRef.current || !connected) return;
@@ -297,6 +330,9 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     circuit,
     code,
     setCode,
+    simulateResult,
+    simulating,
+    runSimulation,
     commits,
     error,
     busy,
