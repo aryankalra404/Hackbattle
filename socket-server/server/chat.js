@@ -62,8 +62,11 @@ async function answerChatMessage({ session, message, retrieveChunks = retrieve, 
     console.warn(`[chat] RAG retrieval failed: ${error.message}`);
   }
 
-  if (snippets.length === 0 && !diagnosis?.suspectedComponent) return fallbackResponse(session);
-
+  // No hard bail when retrieval comes up empty: a greeting or a question about
+  // the live circuit itself (e.g. "what's connected right now?") has nothing
+  // to match in the datasheet vector store but is still answerable from the
+  // circuit summary and diagnosis below, and the system prompt already
+  // forbids inventing facts the evidence doesn't support.
   const evidence = snippets.map(({ source, heading, text }) => ({ source, heading, text }));
   const history = Array.isArray(session.chatHistory) ? session.chatHistory.slice(-MAX_HISTORY_MESSAGES) : [];
   const response = await client.chat.completions.create({
