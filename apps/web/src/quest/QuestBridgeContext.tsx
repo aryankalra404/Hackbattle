@@ -100,17 +100,29 @@ type QuestBridgeState = {
   busy: string | null;
   createCommit: (message: string, author: string) => void;
   loadCommit: (commitId: string) => void;
+  clearCommits: () => void;
   intent: string;
   setIntent: (intent: string) => void;
   checkResult: QuestCheckResult | null;
   checking: boolean;
   chatHistory: QuestChatTurn[];
   chatPending: boolean;
+  language: string;
+  setLanguage: (language: string) => void;
   sendChatMessage: (message: string) => void;
   sendVoiceMessage: (audioDataUrl: string) => void;
 };
 
-const DEFAULTS = { serverUrl: 'http://localhost:3001', sessionId: 'demo-room' };
+const DEFAULTS = { serverUrl: 'http://localhost:3001', sessionId: 'demo-room', language: 'en' };
+
+export const SUPPORTED_LANGUAGES: { code: string; label: string }[] = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'ja', label: 'Japanese' },
+];
 
 function loadDefault(key: string, fallback: string): string {
   try {
@@ -298,24 +310,37 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     [connected, sessionId],
   );
 
+  const clearCommits = useCallback(() => {
+    if (!socketRef.current || !connected) return;
+    if (!window.confirm('Clear all commit history for this session? This cannot be undone.')) return;
+    socketRef.current.emit('commit:clear', { sessionId });
+  }, [connected, sessionId]);
+
+  const [language, setLanguageState] = useState(() => loadDefault('circuitdoctor.language', DEFAULTS.language));
+
+  const setLanguage = useCallback((lang: string) => {
+    setLanguageState(lang);
+    try { window.localStorage.setItem('circuitdoctor.language', lang); } catch { /* ignore */ }
+  }, []);
+
   const sendChatMessage = useCallback(
     (message: string) => {
       const text = message.trim();
       if (!socketRef.current || !connected || !text) return;
       setChatHistory((history) => [...history, { role: 'user', content: text }]);
       setChatPending(true);
-      socketRef.current.emit('chat:message', { sessionId, message: text });
+      socketRef.current.emit('chat:message', { sessionId, message: text, language });
     },
-    [connected, sessionId],
+    [connected, sessionId, language],
   );
 
   const sendVoiceMessage = useCallback(
     (audioDataUrl: string) => {
       if (!socketRef.current || !connected) return;
       setChatPending(true);
-      socketRef.current.emit('chat:voice', { sessionId, audioUrl: audioDataUrl, voiceReply: true });
+      socketRef.current.emit('chat:voice', { sessionId, audioUrl: audioDataUrl, voiceReply: true, language });
     },
-    [connected, sessionId],
+    [connected, sessionId, language],
   );
 
   const value: QuestBridgeState = {
@@ -338,12 +363,15 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     busy,
     createCommit,
     loadCommit,
+    clearCommits,
     intent,
     setIntent,
     checkResult,
     checking,
     chatHistory,
     chatPending,
+    language,
+    setLanguage,
     sendChatMessage,
     sendVoiceMessage,
   };

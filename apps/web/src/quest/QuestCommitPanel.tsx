@@ -21,6 +21,7 @@ export function QuestCommitPanel() {
     busy,
     createCommit,
     loadCommit,
+    clearCommits,
   } = useQuestBridge();
 
   const [settingsOpen, setSettingsOpen] = useState(!connected);
@@ -104,6 +105,15 @@ export function QuestCommitPanel() {
       <div className="panel__header quest-panel__history-header">
         History
         <span className="chip">{commits.length}</span>
+        <button
+          type="button"
+          className="btn btn--danger-text btn--sm quest-panel__clear-btn"
+          title="Clear all commit history"
+          disabled={!connected || commits.length === 0}
+          onClick={clearCommits}
+        >
+          🗑
+        </button>
       </div>
       <div className="scroll quest-panel__list">
         {commits.length === 0 && (

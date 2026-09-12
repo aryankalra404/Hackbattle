@@ -1438,12 +1438,34 @@
 }
 
 .quest-panel__history-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 600;
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 8px 12px 4px;
+}
+
+.quest-panel__clear-btn {
+  margin-left: auto;
+  font-size: 13px;
+  padding: 1px 4px;
+  opacity: 0.45;
+  line-height: 1;
+  border-radius: 4px;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.quest-panel__clear-btn:not(:disabled):hover {
+  opacity: 1;
+  color: var(--danger, #ef4444);
+}
+
+.quest-panel__clear-btn:disabled {
+  cursor: default;
 }
 
 .quest-panel__list {
@@ -1788,10 +1810,49 @@
 
 .quest-chat__composer {
   display: flex;
-  gap: 8px;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px 12px;
   border-top: 1px solid var(--border-subtle);
+}
+
+.quest-chat__composer-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quest-chat__lang-label {
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+  cursor: default;
+  opacity: 0.75;
+}
+
+.quest-chat__lang-select {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--fg-muted);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.quest-chat__lang-select:hover,
+.quest-chat__lang-select:focus {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.quest-chat__composer-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
 }
 
 .quest-chat__input {
@@ -1799,3 +1860,4 @@
   font: inherit;
   flex: 1;
 }
+

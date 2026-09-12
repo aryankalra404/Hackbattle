@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const { diagnoseCircuit } = require('./rules');
 const { diagnoseAndVerify } = require('./reasoning/diagnoseAndVerify');
 const { answerChatMessage, answerVoiceMessage, createVoiceReplyAudio, appendChatTurn, fallbackResponse } = require('./server/chat');
-const { createCommit, listCommits, getCommit, summarizeCommit, detectCommitIntent } = require('./commits');
+const { createCommit, listCommits, getCommit, clearCommits, summarizeCommit, detectCommitIntent } = require('./commits');
 const { compileSketch } = require('./compile/compileSketch');
 const { simulateSketch } = require('./simulate/simulateSketch');
 
@@ -284,6 +284,23 @@ io.on('connection', (socket) => {
     socket.emit('commit:list', { sessionId, commits: listCommits(sessionId) });
   });
 
+  socket.on('commit:clear', (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    if (!sessionId) {
+      socket.emit('commit:error', { message: 'A valid sessionId is required.' });
+      return;
+    }
+    try {
+      clearCommits(sessionId);
+      console.log(`[commit] ${sessionId}: history cleared by ${socket.id}`);
+      // Broadcast to the whole room so every open tab sees the list empty instantly.
+      io.to(sessionId).emit('commit:list', { sessionId, commits: [] });
+    } catch (error) {
+      console.error(`[commit] ${sessionId}: clear failed: ${error.message}`);
+      socket.emit('commit:error', { message: 'Could not clear commit history.' });
+    }
+  });
+
   socket.on('commit:load', (payload = {}) => {
     const sessionId = cleanSessionId(payload.sessionId);
     const commitId = typeof payload.commitId === 'string' ? payload.commitId : null;
@@ -323,9 +340,14 @@ io.on('connection', (socket) => {
     reasoningDebouncer.schedule(sessionId, revision);
   });
 
+  // Matches greetings and simple conversational messages that should always get
+  // a friendly reply regardless of whether the user has a circuit loaded yet.
+  const CONVERSATIONAL_RE = /^\s*(hi+|hey+|hello+|howdy|sup|what'?s up|good\s*(morning|afternoon|evening|night)|how are you|who are you|what (can|do) you do|thanks?|thank you|thx|bye|goodbye|ok|okay|cool|nice|great|yes|no|sure|yep|nope|nah|got it|i see|alright|right)[\.!\?,]*\s*$/i;
+
   socket.on('chat:message', async (payload = {}) => {
     const sessionId = cleanSessionId(payload.sessionId);
     const message = typeof payload.message === 'string' ? payload.message.trim() : '';
+    const language = typeof payload.language === 'string' && payload.language.trim() ? payload.language.trim() : 'en';
     const wantsVoiceReply = payload.voiceReply === true;
     const emitChatResponse = async (response) => {
       let audioUrl;
@@ -349,7 +371,8 @@ io.on('connection', (socket) => {
     }
 
     const session = sessions.get(sessionId);
-    if (!session?.circuit && !session?.latestResult) {
+    const isConversational = CONVERSATIONAL_RE.test(message);
+    if (!isConversational && !session?.circuit && !session?.latestResult) {
       const response = 'Build or diagnose a circuit first so I have live context to reference.';
       if (wantsVoiceReply) {
         let audioUrl;
@@ -359,9 +382,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    console.log(`[chat] ${sessionId} (${socket.id}): message received`);
+    console.log(`[chat] ${sessionId} (${socket.id}): message received (lang=${language})`);
     try {
-      const response = await answerChatMessage({ session, message });
+      const response = await answerChatMessage({ session, message, language });
       appendChatTurn(session, 'user', message);
       appendChatTurn(session, 'assistant', response);
       await emitChatResponse(response);
@@ -378,6 +401,7 @@ io.on('connection', (socket) => {
   socket.on('chat:voice', async (payload = {}) => {
     const sessionId = cleanSessionId(payload.sessionId);
     const audioUrl = typeof payload.audioUrl === 'string' ? payload.audioUrl : '';
+    const language = typeof payload.language === 'string' && payload.language.trim() ? payload.language.trim() : 'en';
     const session = sessionId ? sessions.get(sessionId) : null;
     if (!session?.circuit && !session?.latestResult) {
       io.to(sessionId).emit('chat:voice-response', { ok: false, message: 'Build or diagnose a circuit first so I have live context to reference.' });
@@ -400,7 +424,7 @@ io.on('connection', (socket) => {
       io.to(sessionId).emit('chat:voice-response', { ok, transcript, message, audioUrl });
     };
     try {
-      const response = await answerVoiceMessage({ session, audioUrl });
+      const response = await answerVoiceMessage({ session, audioUrl, language });
       appendChatTurn(session, 'user', response.transcript);
 
       const commitIntent = detectCommitIntent(response.transcript);

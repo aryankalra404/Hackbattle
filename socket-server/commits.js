@@ -138,4 +138,8 @@ function detectCommitIntent(transcript) {
   return { message: message || 'Voice commit' };
 }
 
-module.exports = { createCommit, listCommits, getCommit, summarizeCommit: summarize, detectCommitIntent };
+function clearCommits(sessionId) {
+  writeAll(sessionId, []);
+}
+
+module.exports = { createCommit, listCommits, getCommit, clearCommits, summarizeCommit: summarize, detectCommitIntent };

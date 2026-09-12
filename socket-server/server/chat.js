@@ -44,16 +44,37 @@ async function transcribeAudio(audioUrl, client) {
 }
 
 /** Same grounding as text chat (answerChatMessage) — the only voice-specific step is the transcription. */
-async function answerVoiceMessage({ session, audioUrl, retrieveChunks = retrieve, client = getClient() }) {
+async function answerVoiceMessage({ session, audioUrl, language = 'en', retrieveChunks = retrieve, client = getClient() }) {
   const transcript = await transcribeAudio(audioUrl, client);
-  const answer = await answerChatMessage({ session, message: transcript, retrieveChunks, client });
+  const answer = await answerChatMessage({ session, message: transcript, language, retrieveChunks, client });
   return { transcript, answer };
 }
 
-async function answerChatMessage({ session, message, retrieveChunks = retrieve, client = getClient() }) {
+const LANGUAGE_NAMES = {
+  en: 'English',
+  hi: 'Hindi',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  ja: 'Japanese',
+};
+
+async function answerChatMessage({ session, message, language = 'en', retrieveChunks = retrieve, client = getClient() }) {
   const circuit = session.circuit || { components: [], wires: [] };
   const circuitSummary = summarizeCircuit(circuit);
   const diagnosis = session.latestResult || null;
+
+  // Handle greetings and small-talk first with no RAG overhead.
+  const GREETING_RE = /^\s*(hi+|hey+|hello+|howdy|sup|what'?s up|good\s*(morning|afternoon|evening|night)|who are you|what (can|do) you do)[.!?,]*\s*$/i;
+  if (GREETING_RE.test(message)) {
+    // Still honour the language preference for greetings.
+    if (language !== 'en') {
+      // Fall through to the LLM so it can greet in the right language.
+    } else {
+      return "Hi! I'm CircuitDoctor — I can check your circuit for faults and answer questions about it. Go ahead and build something on the Quest, or ask me anything about your current circuit!";
+    }
+  }
+
   const query = buildRetrievalQuery(message, circuit);
   let snippets = [];
   try {
@@ -62,13 +83,24 @@ async function answerChatMessage({ session, message, retrieveChunks = retrieve, 
     console.warn(`[chat] RAG retrieval failed: ${error.message}`);
   }
 
-  // No hard bail when retrieval comes up empty: a greeting or a question about
-  // the live circuit itself (e.g. "what's connected right now?") has nothing
-  // to match in the datasheet vector store but is still answerable from the
-  // circuit summary and diagnosis below, and the system prompt already
-  // forbids inventing facts the evidence doesn't support.
   const evidence = snippets.map(({ source, heading, text }) => ({ source, heading, text }));
   const history = Array.isArray(session.chatHistory) ? session.chatHistory.slice(-MAX_HISTORY_MESSAGES) : [];
+
+  // Build a plain-English verdict summary so the LLM doesn't have to re-interpret raw JSON.
+  let diagnosisSummary = 'No diagnosis has been run yet.';
+  if (diagnosis) {
+    if (diagnosis.ok) {
+      diagnosisSummary = `VERDICT: The circuit is CORRECT. ${diagnosis.message || ''}`;
+    } else {
+      const faultList = Array.isArray(diagnosis.faults) && diagnosis.faults.length
+        ? diagnosis.faults.map((f) => `• ${f.componentId}: ${f.finalMessage || f.issue}`).join('\n')
+        : diagnosis.message || 'Unknown fault.';
+      diagnosisSummary = `VERDICT: The circuit has a FAULT.\n${faultList}`;
+    }
+  }
+
+  const langName = LANGUAGE_NAMES[language] || 'English';
+
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
@@ -76,7 +108,22 @@ async function answerChatMessage({ session, message, retrieveChunks = retrieve, 
     messages: [
       {
         role: 'system',
-        content: `You are CircuitDoctor, a concise circuit assistant. Answer only using the live circuit summary, latest diagnosis, and retrieved datasheet excerpts supplied below. Do not invent values, missing connections, or component behavior. If the evidence cannot answer the question, say so clearly. Refer to exact component IDs when relevant.\n\nLive circuit summary:\n${JSON.stringify(circuitSummary)}\n\nLatest diagnosis:\n${JSON.stringify(diagnosis)}\n\nRetrieved datasheet excerpts:\n${JSON.stringify(evidence)}`
+        content: `You are CircuitDoctor, a friendly and concise circuit assistant for a Unity AR app on Meta Quest.
+
+LANGUAGE: You MUST respond exclusively in ${langName}. Do not switch to any other language regardless of what language the user's message is written in. Always reply in ${langName}.
+
+IMPORTANT: The VERDICT below is the authoritative diagnosis from a dedicated circuit-fault engine. You MUST accept it as ground truth. Never contradict or override it — especially when the user asks whether their circuit is correct. If the VERDICT says the circuit is correct, confirm it is correct. If it says there is a fault, explain the fault using the details given.
+
+Answer naturally and helpfully. For simple conversational questions not about the circuit, respond in a friendly way. Refer to exact component IDs when relevant. Do not invent values, connections, or behavior not shown in the evidence.
+
+Live circuit summary:
+${JSON.stringify(circuitSummary)}
+
+Diagnosis (authoritative):
+${diagnosisSummary}
+
+Retrieved datasheet excerpts:
+${JSON.stringify(evidence)}`
       },
       ...history,
       { role: 'user', content: message }

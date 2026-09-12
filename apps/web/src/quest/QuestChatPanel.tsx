@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuestBridge } from './QuestBridgeContext.js';
+import { SUPPORTED_LANGUAGES } from './QuestBridgeContext.js';
 
 /**
  * Back-and-forth chat with CircuitDoctor, grounded on the live circuit graph
@@ -24,7 +25,7 @@ const SILENCE_STOP_MS = 1200;
 const MAX_RECORDING_MS = 20000;
 
 export function QuestChatPanel() {
-  const { connected, circuit, chatHistory, chatPending, sendChatMessage, sendVoiceMessage } = useQuestBridge();
+  const { connected, circuit, chatHistory, chatPending, sendChatMessage, sendVoiceMessage, language, setLanguage } = useQuestBridge();
   const [draft, setDraft] = useState('');
   const [recording, setRecording] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
@@ -192,28 +193,48 @@ export function QuestChatPanel() {
       )}
 
       <div className="quest-chat__composer">
-        <textarea
-          className="input quest-chat__input"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder="Ask CircuitDoctor..."
-          rows={2}
-          disabled={!connected}
-        />
-        <button
-          type="button"
-          className="btn btn--primary btn--sm"
-          disabled={!connected || !draft.trim()}
-          onClick={send}
-        >
-          Send
-        </button>
+        <div className="quest-chat__composer-top">
+          <label className="quest-chat__lang-label" htmlFor="chat-lang-select">
+            🌐
+          </label>
+          <select
+            id="chat-lang-select"
+            className="quest-chat__lang-select"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            title="Reply language"
+          >
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="quest-chat__composer-row">
+          <textarea
+            className="input quest-chat__input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder="Ask CircuitDoctor..."
+            rows={2}
+            disabled={!connected}
+          />
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            disabled={!connected || !draft.trim()}
+            onClick={send}
+          >
+            Send
+          </button>
+        </div>
       </div>
     </section>
   );
