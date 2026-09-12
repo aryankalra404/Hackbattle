@@ -116,8 +116,12 @@ io.on('connection', (socket) => {
     if (!sessions.has(sessionId)) sessions.set(sessionId, { circuit: null, updatedAt: null, intent: '', latestResult: null, chatHistory: [] });
     // A dashboard joining after the Quest has already built something should
     // see it immediately, not wait for the next live change.
-    const existingCircuit = sessions.get(sessionId).circuit;
-    if (existingCircuit) socket.emit('circuit:update', { sessionId, circuit: existingCircuit });
+    const existingSession = sessions.get(sessionId);
+    if (existingSession.circuit) socket.emit('circuit:update', { sessionId, circuit: existingSession.circuit });
+    // Same for the last check: without this, a client that reconnects mid
+    // session (a page reload, a dropped socket) is stuck on "checking" until
+    // the next real circuit edit, even though the answer is already known.
+    if (existingSession.latestResult) socket.emit('circuit:result', existingSession.latestResult);
     console.log(`[session] ${socket.id} joined ${sessionId}`);
   });
 

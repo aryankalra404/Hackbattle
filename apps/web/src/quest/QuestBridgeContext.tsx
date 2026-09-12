@@ -133,7 +133,13 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
       socket.emit('session:join', { sessionId });
       socket.emit('commit:list', { sessionId });
     });
-    socket.on('disconnect', () => setConnected(false));
+    socket.on('disconnect', () => {
+      setConnected(false);
+      // A check in flight when the socket drops would otherwise leave the
+      // Checks tab stuck on "Checking..." forever — session:join resends the
+      // real result on reconnect, so this is safe to clear here.
+      setChecking(false);
+    });
     socket.on('connect_error', (err: Error) => setError(`Could not connect: ${err.message}`));
 
     socket.on('circuit:update', (payload: { circuit: QuestCircuit }) => {
