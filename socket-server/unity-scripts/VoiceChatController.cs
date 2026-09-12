@@ -12,7 +12,8 @@ using UnityEngine.Android;
 
 /// <summary>
 /// Push-to-talk voice chat with CircuitDoctor, entirely on-device: hold the
-/// configured button to record, release to send. The reply is spoken back
+/// configured button (or pinch, for hand-tracking with no controllers) to
+/// record, release to send. The reply is spoken back
 /// through this GameObject's AudioSource — since that playback happens
 /// inside the Quest app itself, it comes out of the headset's own speakers
 /// automatically, the same as any other Unity audio. No laptop involved.
@@ -32,12 +33,16 @@ public class VoiceChatController : MonoBehaviour
 
     [Header("Push to talk")]
     [SerializeField] private OVRInput.Button talkButton = OVRInput.Button.One;
+    [Tooltip("Also start/stop recording on an index-finger pinch, for hand-tracking setups with no controllers.")]
+    [SerializeField] private bool allowPinchToTalk = true;
     [SerializeField] private int maxRecordingSeconds = 20;
     [SerializeField] private int sampleRate = 16000;
 
     private AudioClip recordingClip;
     private bool isRecording;
     private string microphoneDevice;
+    private OVRHand[] hands;
+    private bool wasPinching;
 
     // Socket.IO callbacks fire on a background thread (same as QuestCircuitBridge's
     // pending-result pattern), so a reply is queued here and only played from Update().
@@ -78,6 +83,8 @@ public class VoiceChatController : MonoBehaviour
             return;
         }
         microphoneDevice = Microphone.devices[0];
+
+        if (allowPinchToTalk) hands = FindObjectsByType<OVRHand>(FindObjectsSortMode.None);
     }
 
     private void Update()
@@ -92,14 +99,31 @@ public class VoiceChatController : MonoBehaviour
         }
         if (!bridge.Socket.Connected) return;
 
-        if (OVRInput.GetDown(talkButton) && !isRecording)
+        bool pinching = allowPinchToTalk && IsAnyHandPinching();
+        bool talkPressed = OVRInput.GetDown(talkButton) || (pinching && !wasPinching);
+        bool talkReleased = OVRInput.GetUp(talkButton) || (!pinching && wasPinching);
+        wasPinching = pinching;
+
+        if (talkPressed && !isRecording)
         {
             StartRecording();
         }
-        else if (OVRInput.GetUp(talkButton) && isRecording)
+        else if (talkReleased && isRecording)
         {
             StopRecordingAndSend();
         }
+    }
+
+    // Pinch (thumb + index) stands in for a controller button when the user
+    // has no controllers, mirroring OVRInput's own GetDown/GetUp edge check.
+    private bool IsAnyHandPinching()
+    {
+        if (hands == null || hands.Length == 0) return false;
+        foreach (OVRHand hand in hands)
+        {
+            if (hand != null && hand.IsTracked && hand.GetFingerIsPinching(OVRHand.HandFinger.Index)) return true;
+        }
+        return false;
     }
 
     private void ApplyPendingReply()
