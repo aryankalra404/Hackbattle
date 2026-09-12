@@ -66,6 +66,16 @@ public class PinPoint : MonoBehaviour
         RefreshOccupancy();
     }
 
+    /// <summary>
+    /// Snapshot of every plug currently in this pin (a shared GND/power rail
+    /// can hold more than one). Safe to iterate while each entry unplugs
+    /// itself, since that mutates the live set this copy was taken from.
+    /// </summary>
+    public List<WirePlug> GetOccupyingPlugs()
+    {
+        return new List<WirePlug>(occupyingPlugs);
+    }
+
     public void SetHighlighted(bool on)
     {
         isHighlighted = on;

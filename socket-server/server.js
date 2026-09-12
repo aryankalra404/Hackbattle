@@ -114,6 +114,10 @@ io.on('connection', (socket) => {
     socket.data.sessionId = sessionId;
     socket.join(sessionId);
     if (!sessions.has(sessionId)) sessions.set(sessionId, { circuit: null, updatedAt: null, intent: '', latestResult: null, chatHistory: [] });
+    // A dashboard joining after the Quest has already built something should
+    // see it immediately, not wait for the next live change.
+    const existingCircuit = sessions.get(sessionId).circuit;
+    if (existingCircuit) socket.emit('circuit:update', { sessionId, circuit: existingCircuit });
     console.log(`[session] ${socket.id} joined ${sessionId}`);
   });
 

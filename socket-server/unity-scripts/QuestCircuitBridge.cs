@@ -68,6 +68,9 @@ public class QuestCircuitBridge : MonoBehaviour
     [SerializeField] private List<PirDefinition> pirSensors = new List<PirDefinition>();
 
     private SocketIOUnity socket;
+    /// <summary>Shared with VoiceChatController, so voice chat reuses this connection/session instead of opening a second one.</summary>
+    public SocketIOUnity Socket => socket;
+    public string SessionId => sessionId;
     private string lastCircuitJson = "";
     private readonly HashSet<PinPoint> faultHighlightedPins = new HashSet<PinPoint>();
     private readonly object pendingCircuitResultLock = new object();
