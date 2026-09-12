@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="62" cy="30" r="26"/><path d="M4 30h34"/><path d="M46 12v36"/><path d="M46 22 76 6"/><path d="M76 6V2"/><path d="M46 38 76 54"/><path d="M76 54v4"/><path d="M64 44l12 8-2-10z" fill="currentColor"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 66 70">
+  <!-- TO-92, flat face forward: collector, base, emitter left to right -->
+  <path d="M19 44v24M33 44v24M47 44v24" stroke="#b6bec5" stroke-width="4" stroke-linecap="round" />
+  <path d="M8 30a25 25 0 0 1 50 0v16H8z" fill="#26292e" stroke="#0a0c0e" stroke-width="1.4" />
+  <path d="M12 30a21 21 0 0 1 42 0v12H12z" fill="#31363c" />
+  <text x="33" y="34" fill="#c9d1d9" font-family="sans-serif" font-size="10" font-weight="600" text-anchor="middle" opacity="0.85">2N3904</text>
+  <path d="M14 24a20 20 0 0 1 9-10" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.22" />
+</svg>

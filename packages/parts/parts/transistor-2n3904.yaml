@@ -11,9 +11,9 @@ source: >-
   The .model card is the Gummel-Poon model published in that datasheet.
 
 pins:
-  - { id: collector, name: Collector }
-  - { id: base, name: Base, role: input }
-  - { id: emitter, name: Emitter }
+  - { id: collector, name: Collector, functions: [analog_io] }
+  - { id: base, name: Base, functions: [analog_io] }
+  - { id: emitter, name: Emitter, functions: [analog_io] }
 requiredPins: [collector, base, emitter]
 
 params: {}
@@ -60,7 +60,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/transistor-2n3904.svg
+  symbol2d: { path: symbols/transistor-2n3904.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#1f6feb'
   size: [2, 2]
 

@@ -1,5 +1,10 @@
-import type { ParamDefinition, PartDefinition } from '@circuitgit/schema';
-import { pinRef } from '@circuitgit/schema';
+import type {
+  CircuitComponent,
+  ParamDefinition,
+  PartDefinition,
+  PinMapDefinition,
+} from '@circuitgit/schema';
+import { pinParamKey, pinRef } from '@circuitgit/schema';
 import { partLibrary } from '../state/library.js';
 import { useStore } from '../state/store.js';
 import { formatNumber, formatSi } from '../format.js';
@@ -108,6 +113,124 @@ function ParamField({
   );
 }
 
+/**
+ * A pin map as one table: a row per pin, a column per field. Built from the
+ * expanded params, so any part that declares a pin map gets this for free.
+ * A mode the pin cannot do stays selectable and is labelled, because the
+ * pin_function_mismatch check is what reports it — hiding it would hide the rule.
+ */
+function PinMapTable({
+  componentId,
+  part,
+  mapId,
+  map,
+  component,
+}: {
+  componentId: string;
+  part: PartDefinition;
+  mapId: string;
+  map: PinMapDefinition;
+  component: CircuitComponent;
+}) {
+  const setParam = useStore((s) => s.setParam);
+  const locked = useStore((s) => s.mode === 'simulate');
+  const first = map.pins[0];
+
+  return (
+    <div className="inspector__section">
+      <h4 className="inspector__heading">{map.label}</h4>
+      {map.description && <p className="field__hint">{map.description}</p>}
+      <table className="pinmap">
+        <thead>
+          <tr>
+            <th>Pin</th>
+            {map.fields.map((field) => (
+              <th key={field}>
+                {(first && part.params[pinParamKey(mapId, first, field)]?.label) ?? field}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {map.pins.map((pinId) => {
+            const pin = part.pins.find((candidate) => candidate.id === pinId);
+            const pinName = pin?.name ?? pinId;
+            return (
+              <tr key={pinId}>
+                <th scope="row" title={pin?.functions.join(', ')}>
+                  {pinName}
+                </th>
+                {map.fields.map((field) => {
+                  const key = pinParamKey(mapId, pinId, field);
+                  const definition = part.params[key];
+                  const value = component.params[key];
+                  if (!definition) return <td key={field} />;
+                  const label = `${pinName} ${definition.label}`;
+
+                  if (definition.type === 'enum') {
+                    return (
+                      <td key={field}>
+                        <select
+                          className="select select--sm"
+                          aria-label={label}
+                          disabled={locked}
+                          value={typeof value === 'string' ? value : definition.default}
+                          onChange={(event) => setParam(componentId, key, event.target.value)}
+                        >
+                          {definition.values.map((option) => {
+                            const needs = definition.modes?.[option]?.requires;
+                            const unsupported = needs && !pin?.functions.includes(needs);
+                            return (
+                              <option key={option} value={option}>
+                                {unsupported ? `${option} (not on this pin)` : option}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </td>
+                    );
+                  }
+                  if (definition.type === 'boolean') {
+                    return (
+                      <td key={field}>
+                        <input
+                          type="checkbox"
+                          aria-label={label}
+                          disabled={locked}
+                          checked={value === true}
+                          onChange={(event) => setParam(componentId, key, event.target.checked)}
+                        />
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={field}>
+                      <input
+                        className="input input--sm"
+                        type="number"
+                        aria-label={label}
+                        disabled={locked}
+                        value={typeof value === 'number' ? value : definition.default}
+                        min={definition.min}
+                        max={definition.max}
+                        step="any"
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          if (Number.isFinite(next)) setParam(componentId, key, next);
+                        }}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Ratings({ part }: { part: PartDefinition }) {
   if (part.ratings.length === 0) return null;
   return (
@@ -208,7 +331,14 @@ export function Inspector() {
   }
 
   const part = partLibrary.get(component.part);
-  const params = Object.entries(part.params);
+  // Pin-map settings are shown as their own table below.
+  const params = Object.entries(part.params).filter(([, definition]) => !definition.group);
+  const wiredRefs = new Set(Object.values(snapshot.wires).flatMap((wire) => [wire.a, wire.b]));
+  // Generated pins (breadboard holes) are listed only once something is in them.
+  const generated = part.pins.filter((pin) => pin.generatedBy);
+  const listedPins = part.pins.filter(
+    (pin) => !pin.generatedBy || wiredRefs.has(pinRef(selection, pin.id)),
+  );
 
   return (
     <aside className="inspector panel">
@@ -246,20 +376,42 @@ export function Inspector() {
           </div>
         )}
 
+        {Object.entries(part.pinMaps).map(([mapId, map]) => (
+          <PinMapTable
+            key={mapId}
+            componentId={selection}
+            part={part}
+            mapId={mapId}
+            map={map}
+            component={component}
+          />
+        ))}
+
         <div className="inspector__section">
           <h4 className="inspector__heading">Pins</h4>
+          {generated.length > 0 && (
+            <p className="field__hint">
+              {generated.length} holes in {part.pinGroups.length} connected groups.{' '}
+              {listedPins.length === 0 ? 'Nothing plugged in yet.' : 'Showing the ones in use.'}
+            </p>
+          )}
           <ul className="pins">
-            {part.pins.map((pin) => {
+            {listedPins.map((pin) => {
               const ref = pinRef(selection, pin.id);
               const isGround = snapshot.settings.ground === ref;
-              const wired = Object.values(snapshot.wires).some(
-                (wire) => wire.a === ref || wire.b === ref,
-              );
+              const wired = wiredRefs.has(ref);
               return (
                 <li key={pin.id} className="pins__row">
                   <span className="pins__name">
                     {pin.name}
                     {part.requiredPins.includes(pin.id) && <em title="Required">*</em>}
+                    <span className="pins__functions">
+                      {pin.functions.map((fn) => (
+                        <span key={fn} className={`fn fn--${fn}`}>
+                          {fn.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </span>
                   </span>
                   <span className={`pins__state${wired ? ' pins__state--wired' : ''}`}>
                     {wired ? 'wired' : 'open'}

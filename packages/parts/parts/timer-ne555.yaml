@@ -13,14 +13,14 @@ source: >-
   that architecture, not a vendor-supplied SPICE model.
 
 pins:
-  - { id: gnd, name: GND, role: ground }
-  - { id: trigger, name: Trigger, role: input }
-  - { id: output, name: Output, role: output }
-  - { id: reset, name: Reset, role: input }
-  - { id: control, name: Control, role: input }
-  - { id: threshold, name: Threshold, role: input }
-  - { id: discharge, name: Discharge }
-  - { id: vcc, name: VCC, role: power }
+  - { id: gnd, name: GND, functions: [ground] }
+  - { id: trigger, name: Trigger, functions: [analog_io] }
+  - { id: output, name: Output, functions: [digital_io] }
+  - { id: reset, name: Reset, functions: [analog_io] }
+  - { id: control, name: Control, functions: [analog_io] }
+  - { id: threshold, name: Threshold, functions: [analog_io] }
+  - { id: discharge, name: Discharge, functions: [analog_io] }
+  - { id: vcc, name: VCC, functions: [power] }
 requiredPins: [gnd, vcc, trigger, threshold, output]
 
 params: {}
@@ -74,7 +74,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/timer-ne555.svg
+  symbol2d: { path: symbols/timer-ne555.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#6e7781'
   size: [3, 4]
 

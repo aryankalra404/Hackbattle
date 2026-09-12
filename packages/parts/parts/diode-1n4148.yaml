@@ -11,8 +11,8 @@ source: >-
   published in that datasheet's application data.
 
 pins:
-  - { id: anode, name: Anode }
-  - { id: cathode, name: Cathode }
+  - { id: anode, name: Anode, functions: [analog_io] }
+  - { id: cathode, name: Cathode, functions: [analog_io] }
 requiredPins: [anode, cathode]
 polarized: { positive: anode, negative: cathode }
 
@@ -51,7 +51,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/diode-1n4148.svg
+  symbol2d: { path: symbols/diode-1n4148.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#57606a'
   size: [2, 1]
 

@@ -1,0 +1,154 @@
+id: arduino-uno-r3
+version: 1
+name: Arduino Uno R3
+category: Boards
+description: >-
+  Microcontroller board used as a configurable signal source and sink. Set what
+  each pin does in its pin modes; no sketch runs.
+labelPrefix: U
+source: >-
+  Arduino Uno Rev3 product reference (docs.arduino.cc/hardware/uno-rev3), tech
+  specs: 5 V operating voltage; input voltage 7-12 V recommended, 6-20 V limit;
+  DC current per I/O pin 20 mA; DC current for the 3.3 V pin 50 mA; 14 digital
+  I/O pins of which 6 provide PWM (3, 5, 6, 9, 10, 11); 6 analog inputs, which
+  can also be used as digital I/O. Alternate pin functions from the Microchip
+  ATmega328P datasheet (DS40002061): RXD/TXD on PD0/PD1 (D0/D1),
+  SS/MOSI/MISO/SCK on PB2-PB5 (D10-D13), SDA/SCL on PC4/PC5 (A4/A5); its
+  absolute maximum DC current per I/O pin is 40 mA. The three GND headers are
+  one ground plane on the board.
+
+# Pin functions say what each header pin CAN do. Which one it does is the
+# per-pin mode below, chosen by the user and checked against this list.
+pins:
+  - { id: d0, name: 'D0 (RX)', functions: [digital_io, uart_rx], optional: true }
+  - { id: d1, name: 'D1 (TX)', functions: [digital_io, uart_tx], optional: true }
+  - { id: d2, name: D2, functions: [digital_io], optional: true }
+  - { id: d3, name: 'D3 ~', functions: [digital_io, pwm], optional: true }
+  - { id: d4, name: D4, functions: [digital_io], optional: true }
+  - { id: d5, name: 'D5 ~', functions: [digital_io, pwm], optional: true }
+  - { id: d6, name: 'D6 ~', functions: [digital_io, pwm], optional: true }
+  - { id: d7, name: D7, functions: [digital_io], optional: true }
+  - { id: d8, name: D8, functions: [digital_io], optional: true }
+  - { id: d9, name: 'D9 ~', functions: [digital_io, pwm], optional: true }
+  - { id: d10, name: 'D10 ~ (SS)', functions: [digital_io, pwm, spi_ss], optional: true }
+  - { id: d11, name: 'D11 ~ (MOSI)', functions: [digital_io, pwm, spi_mosi], optional: true }
+  - { id: d12, name: 'D12 (MISO)', functions: [digital_io, spi_miso], optional: true }
+  - { id: d13, name: 'D13 (SCK)', functions: [digital_io, spi_sck], optional: true }
+  - { id: a0, name: A0, functions: [analog_in, digital_io], optional: true }
+  - { id: a1, name: A1, functions: [analog_in, digital_io], optional: true }
+  - { id: a2, name: A2, functions: [analog_in, digital_io], optional: true }
+  - { id: a3, name: A3, functions: [analog_in, digital_io], optional: true }
+  - { id: a4, name: 'A4 (SDA)', functions: [analog_in, digital_io, i2c_sda], optional: true }
+  - { id: a5, name: 'A5 (SCL)', functions: [analog_in, digital_io, i2c_scl], optional: true }
+  - { id: v5, name: 5V, functions: [power], voltage: 5, optional: true }
+  - { id: v3v3, name: 3.3V, functions: [power], voltage: 3.3, optional: true }
+  - { id: vin, name: VIN, functions: [power], optional: true }
+  - { id: gnd1, name: GND, functions: [ground], optional: true }
+  - { id: gnd2, name: GND, functions: [ground], optional: true }
+  - { id: gnd3, name: GND, functions: [ground], optional: true }
+
+internalGroups:
+  - { type: pins, pins: [gnd1, gnd2, gnd3] }
+
+params:
+  pinModes:
+    type: pinMap
+    label: Pin modes
+    description: What each header pin does. A mode the pin cannot do is flagged, not hidden.
+    pins: { withAnyFunction: [digital_io, pwm, analog_in] }
+    fields:
+      mode:
+        type: enum
+        label: Mode
+        values: [disabled, digital_out, digital_in, pwm, analog_in]
+        default: disabled
+        modes:
+          digital_out: { requires: digital_io, drives: true }
+          digital_in: { requires: digital_io }
+          pwm: { requires: pwm, drives: true }
+          analog_in: { requires: analog_in }
+      value:
+        type: number
+        label: Value
+        unit: ''
+        default: 0
+        min: 0
+        max: 255
+        siPrefix: false
+        description: HIGH/LOW as 1/0, or PWM duty 0-255. Ignored for inputs.
+
+spice:
+  element: X
+  # The subcircuit body is generated from pinModes at simulate time: one source
+  # per output pin, one input load per input pin, nothing for disabled pins.
+  template: >-
+    X{label} {pin.d0} {pin.d1} {pin.d2} {pin.d3} {pin.d4} {pin.d5} {pin.d6}
+    {pin.d7} {pin.d8} {pin.d9} {pin.d10} {pin.d11} {pin.d12} {pin.d13} {pin.a0}
+    {pin.a1} {pin.a2} {pin.a3} {pin.a4} {pin.a5} {pin.v5} {pin.v3v3} {pin.vin}
+    {pin.gnd1} UNO_{label}
+  generatedFrom: pinModes
+
+ratings:
+  - quantity: current
+    eachPin: { withAnyFunction: [digital_io] }
+    max: 0.02
+    unit: A
+    note: 20 mA DC per I/O pin (Arduino spec); 40 mA is the ATmega328P absolute maximum.
+  - quantity: current
+    pin: v3v3
+    max: 0.05
+    unit: A
+    note: 50 mA maximum from the 3.3 V pin.
+  - quantity: voltage
+    across: [vin, gnd1]
+    max: 20
+    unit: V
+    note: 20 V input voltage limit (7-12 V recommended).
+
+# Where each header pin sits on the board's own 0.1 in grid, origin top-left,
+# y running down — the same form a breadboard uses. Giving every pin a position
+# is what makes the canvas draw the board at true scale with a wirable hole per
+# pin instead of a card with pins down its edges; no code names this part.
+# Positions follow the Uno R3 header arrangement, including the 0.05 in offset
+# between D7 and D8 that shields are cut around. Header positions the part does
+# not model electrically (IOREF, RESET, AREF, SDA, SCL) are left out of both the
+# layout and the artwork, so every hole drawn is a hole that can be wired.
+pinLayout:
+  gnd3: [10.5, 1]
+  d13: [11.5, 1]
+  d12: [12.5, 1]
+  d11: [13.5, 1]
+  d10: [14.5, 1]
+  d9: [15.5, 1]
+  d8: [16.5, 1]
+  d7: [18, 1]
+  d6: [19, 1]
+  d5: [20, 1]
+  d4: [21, 1]
+  d3: [22, 1]
+  d2: [23, 1]
+  d1: [24, 1]
+  d0: [25, 1]
+  v3v3: [8.5, 20]
+  v5: [9.5, 20]
+  gnd1: [10.5, 20]
+  gnd2: [11.5, 20]
+  vin: [12.5, 20]
+  a0: [14.5, 20]
+  a1: [15.5, 20]
+  a2: [16.5, 20]
+  a3: [17.5, 20]
+  a4: [18.5, 20]
+  a5: [19.5, 20]
+
+visual:
+  symbol2d: { path: symbols/arduino-uno-r3.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
+  accent: '#00878a'
+  # 68.6 x 53.4 mm board on the bench.
+  size: [3.43, 2.67]
+
+footprint:
+  holeSpacingMm: 2.54
+  # 2.7 x 2.1 in in hole pitches — the artwork uses the same units.
+  gridSize: [27, 21]

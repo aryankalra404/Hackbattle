@@ -10,8 +10,8 @@ source: >-
   the E12 decade series.
 
 pins:
-  - { id: a, name: A }
-  - { id: b, name: B }
+  - { id: a, name: A, functions: [analog_io] }
+  - { id: b, name: B, functions: [analog_io] }
 requiredPins: [a, b]
 
 params:
@@ -50,7 +50,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/resistor.svg
+  symbol2d: { path: symbols/resistor.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#9a6700'
   size: [2, 1]
 

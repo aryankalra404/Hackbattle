@@ -1,1 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 30h48"/><path d="M52 10v40"/><path d="M68 14a30 30 0 0 1 0 32"/><path d="M68 30h48"/><path d="M30 14h12M36 8v12"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 70">
+  <!-- the minus stripe is on the right, where the negative pin is drawn -->
+  <path d="M20 46v22M38 46v22" stroke="#b6bec5" stroke-width="4" stroke-linecap="round" />
+  <rect x="8" y="3" width="42" height="46" rx="5" fill="#1f3f8f" stroke="#152a63" stroke-width="1.6" />
+  <rect x="8" y="3" width="42" height="7" rx="3.5" fill="#4f6fc0" />
+  <path d="M37 4h9a4 4 0 0 1 4 4v37a4 4 0 0 1-4 4h-9z" fill="#ccd8ef" />
+  <g fill="#1f3f8f" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="middle">
+    <text x="43.5" y="21">−</text>
+    <text x="43.5" y="32">−</text>
+    <text x="43.5" y="43">−</text>
+  </g>
+  <rect x="12" y="12" width="6" height="32" rx="3" fill="#ffffff" opacity="0.25" />
+</svg>

@@ -110,7 +110,11 @@ rules:
     power_budget: { enabled: true, severity: error }
     hole_occupancy: { enabled: true, severity: warning }
     user_test_failed: { enabled: true, severity: error }
+    pin_function_mismatch: { enabled: true, severity: error }
   ratingHeadroom: 1.0 # multiplier applied to a part's rated max before flagging
+  # For findings that break a labelling convention (a ground lead in a rail marked +)
+  # rather than an electrical rule. The circuit still works, so this is not an error.
+  conventionSeverity: warning
   # Generic thresholds referenced by part `states` rules via config refs.
   thresholds:
     componentOnCurrent: 0.001 # A
@@ -175,6 +179,8 @@ ui:
     removed: '#ef4444'
     changed: '#f59e0b'
   autosaveIntervalMs: 2000
+  boardPitchPx: 12 # one 2.54 mm hole pitch on the 2D canvas
+  pinRowPx: 15 # vertical space per pin on edge-pinned nodes
 
 eval:
   datasetSize: 40

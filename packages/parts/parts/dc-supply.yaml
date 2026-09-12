@@ -11,8 +11,8 @@ source: >-
   9 V PP3 battery, 12 V adapter).
 
 pins:
-  - { id: pos, name: '+', role: power }
-  - { id: neg, name: '-', role: ground }
+  - { id: pos, name: '+', functions: [power], voltage: { paramRef: voltage } }
+  - { id: neg, name: '-', functions: [ground] }
 requiredPins: [pos, neg]
 polarized: { positive: pos, negative: neg }
 
@@ -57,7 +57,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/dc-supply.svg
+  symbol2d: { path: symbols/dc-supply.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#cf222e'
   size: [2, 2]
 

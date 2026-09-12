@@ -7,5 +7,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["**/*.ts"],
-  "references": [{ "path": "../packages/schema" }]
+  "references": [{ "path": "../packages/schema" }, { "path": "../packages/parts" }]
 }

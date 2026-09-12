@@ -10,8 +10,8 @@ source: >-
   supplied in that range.
 
 pins:
-  - { id: a, name: A }
-  - { id: b, name: B }
+  - { id: a, name: A, functions: [analog_io] }
+  - { id: b, name: B, functions: [analog_io] }
 requiredPins: [a, b]
 
 params:
@@ -45,7 +45,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/capacitor-ceramic.svg
+  symbol2d: { path: symbols/capacitor-ceramic.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#8250df'
   size: [2, 1]
 

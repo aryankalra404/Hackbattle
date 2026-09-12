@@ -18,9 +18,11 @@
     "clean": "rimraf \"packages/*/dist\" \"apps/*/dist\" \"**/*.tsbuildinfo\"",
     "dev": "pnpm --filter @circuitgit/web dev",
     "build": "pnpm --filter @circuitgit/web build",
-    "sync": "pnpm --filter @circuitgit/api start"
+    "sync": "pnpm --filter @circuitgit/api start",
+    "assets:report": "vitest run scripts/assetLicenses.test.ts -u"
   },
   "devDependencies": {
+    "@circuitgit/parts": "workspace:*",
     "@circuitgit/schema": "workspace:*",
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.5",

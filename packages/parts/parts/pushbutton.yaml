@@ -10,8 +10,8 @@ source: >-
   ideal-switch value used for simulation.
 
 pins:
-  - { id: a, name: A }
-  - { id: b, name: B }
+  - { id: a, name: A, functions: [analog_io] }
+  - { id: b, name: B, functions: [analog_io] }
 requiredPins: [a, b]
 
 params:
@@ -51,7 +51,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/pushbutton.svg
+  symbol2d: { path: symbols/pushbutton.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#0969da'
   size: [2, 2]
 

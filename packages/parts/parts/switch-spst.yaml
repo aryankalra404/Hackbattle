@@ -10,8 +10,8 @@ source: >-
   ideal-switch values used for simulation, not datasheet figures.
 
 pins:
-  - { id: a, name: A }
-  - { id: b, name: B }
+  - { id: a, name: A, functions: [analog_io] }
+  - { id: b, name: B, functions: [analog_io] }
 requiredPins: [a, b]
 
 params:
@@ -51,7 +51,8 @@ states:
     otherwise: true
 
 visual:
-  symbol2d: symbols/switch-spst.svg
+  symbol2d: { path: symbols/switch-spst.svg, source: drawn in-repo, license: internal }
+  model3d: { placeholder: box, source: procedural, license: internal }
   accent: '#0969da'
   size: [2, 1]
 

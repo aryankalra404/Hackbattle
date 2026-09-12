@@ -97,8 +97,9 @@ export function RoomMenu() {
               </ul>
 
               <p className="field__hint">
-                Open <span className="mono">/xr</span> on the headset, using this machine&rsquo;s
-                LAN address, and join the same room.
+                Open this editor on another machine, using this machine&rsquo;s LAN address, and
+                join the same room. The headset runs the Unity app, which syncs through the
+                CircuitDoctor bridge rather than joining a room here.
               </p>
 
               <button type="button" className="btn btn--sm" onClick={leaveRoom}>

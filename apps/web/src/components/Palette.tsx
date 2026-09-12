@@ -13,7 +13,7 @@ import { useStore } from '../state/store.js';
 function PartChip({ part }: { part: PartDefinition }) {
   const addComponent = useStore((s) => s.addComponent);
   const locked = useStore((s) => s.mode === 'simulate');
-  const svg = partSymbols[part.visual.symbol2d];
+  const svg = partSymbols[part.visual.symbol2d.path];
 
   return (
     <button
