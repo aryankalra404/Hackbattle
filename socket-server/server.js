@@ -317,7 +317,7 @@ io.on('connection', (socket) => {
     const audioUrl = typeof payload.audioUrl === 'string' ? payload.audioUrl : '';
     const session = sessionId ? sessions.get(sessionId) : null;
     if (!session?.circuit && !session?.latestResult) {
-      socket.emit('chat:voice-response', { ok: false, message: 'Build or diagnose a circuit first so I have live context to reference.' });
+      io.to(sessionId).emit('chat:voice-response', { ok: false, message: 'Build or diagnose a circuit first so I have live context to reference.' });
       return;
     }
 
@@ -331,7 +331,10 @@ io.on('connection', (socket) => {
         // browser synthesis where that optional API is available.
         console.warn(`[voice] ${sessionId}: speech generation failed: ${error.message}`);
       }
-      socket.emit('chat:voice-response', { ok, transcript, message, audioUrl });
+      // Broadcast to the whole room, not just the sender: asking from the
+      // laptop still needs the reply spoken out of the headset, and asking
+      // from the headset still needs the dashboard transcript to update.
+      io.to(sessionId).emit('chat:voice-response', { ok, transcript, message, audioUrl });
     };
     try {
       const response = await answerVoiceMessage({ session, audioUrl });

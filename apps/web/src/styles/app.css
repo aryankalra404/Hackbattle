@@ -1694,6 +1694,18 @@
   color: var(--fg-muted);
 }
 
+.quest-chat__mic-hint {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.quest-chat__mic-hint--live {
+  color: var(--accent, #e5484d);
+}
+
 .quest-chat__composer {
   display: flex;
   gap: 8px;

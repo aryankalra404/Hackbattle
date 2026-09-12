@@ -79,6 +79,7 @@ type QuestBridgeState = {
   chatHistory: QuestChatTurn[];
   chatPending: boolean;
   sendChatMessage: (message: string) => void;
+  sendVoiceMessage: (audioDataUrl: string) => void;
 };
 
 const DEFAULTS = { serverUrl: 'http://localhost:3001', sessionId: 'demo-room' };
@@ -170,6 +171,22 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
       setChatHistory((history) => [...history, { role: 'assistant', content: payload.message }]);
       setChatPending(false);
     });
+    // Broadcast to the whole room (server.js), so a question spoken on the
+    // Quest shows up here too, and one typed/spoken here still gets spoken
+    // back out of the headset — the transcript arrives with the reply since
+    // this client never sent the text itself.
+    socket.on(
+      'chat:voice-response',
+      (payload: { ok: boolean; transcript?: string; message: string; audioUrl?: string }) => {
+        setChatHistory((history) => {
+          const next = [...history];
+          if (payload.transcript) next.push({ role: 'user', content: payload.transcript });
+          next.push({ role: 'assistant', content: payload.message });
+          return next;
+        });
+        setChatPending(false);
+      },
+    );
 
     saveDefault('circuitdoctor.serverUrl', serverUrl);
     saveDefault('circuitdoctor.sessionId', sessionId);
@@ -229,6 +246,15 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     [connected, sessionId],
   );
 
+  const sendVoiceMessage = useCallback(
+    (audioDataUrl: string) => {
+      if (!socketRef.current || !connected) return;
+      setChatPending(true);
+      socketRef.current.emit('chat:voice', { sessionId, audioUrl: audioDataUrl, voiceReply: true });
+    },
+    [connected, sessionId],
+  );
+
   const value: QuestBridgeState = {
     serverUrl,
     setServerUrl,
@@ -249,6 +275,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     chatHistory,
     chatPending,
     sendChatMessage,
+    sendVoiceMessage,
   };
 
   return <QuestBridgeCtx.Provider value={value}>{children}</QuestBridgeCtx.Provider>;
