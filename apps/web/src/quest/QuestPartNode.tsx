@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import ledArt from './assets/led-5mm.svg?raw';
 import resistorArt from './assets/resistor.svg?raw';
@@ -7,6 +8,10 @@ import { ARDUINO_HANDLES } from './arduinoPins.js';
 export type QuestPartNodeData = {
   label: string;
   kind: string;
+  /** Set on LED nodes only, from the last `code:simulate-result` — see QuestMirrorCanvas. */
+  simPattern?: 'on' | 'off' | 'blink' | 'pattern' | undefined;
+  simOnMs?: number | undefined;
+  simOffMs?: number | undefined;
 };
 
 /**
@@ -30,9 +35,45 @@ function Dot({ id, x, y }: { id: string; x: number; y: number }) {
   );
 }
 
-function LedNode({ label }: { label: string }) {
+/**
+ * Drives the lit/unlit glow from the last simulation result: steady for
+ * 'on', a self-scheduling timeout loop for 'blink' (CSS keyframes can't take
+ * two independently-variable durations without per-node keyframe rules, and
+ * this is simpler and just as smooth for a two-state glow).
+ */
+function useSimulatedLit(pattern: QuestPartNodeData['simPattern'], onMs?: number, offMs?: number): boolean {
+  const [lit, setLit] = useState(pattern === 'on');
+
+  useEffect(() => {
+    if (pattern === 'on') {
+      setLit(true);
+      return;
+    }
+    if (pattern !== 'blink' || !onMs || !offMs) {
+      setLit(false);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = (state: boolean) => {
+      if (cancelled) return;
+      setLit(state);
+      timer = setTimeout(() => tick(!state), state ? onMs : offMs);
+    };
+    tick(true);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pattern, onMs, offMs]);
+
+  return lit;
+}
+
+function LedNode({ label, simPattern, simOnMs, simOffMs }: QuestPartNodeData) {
+  const lit = useSimulatedLit(simPattern, simOnMs, simOffMs);
   return (
-    <div className="quest-art quest-art--led">
+    <div className={`quest-art quest-art--led${lit ? ' quest-art--lit' : ''}`}>
       <span className="quest-art__label">{label}</span>
       <span className="quest-art__svg" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ledArt }} />
       <Dot id="anode" x={29 / 78} y={60 / 62} />
@@ -85,8 +126,8 @@ function PirNode({ label }: { label: string }) {
 }
 
 export function QuestPartNode({ data }: NodeProps) {
-  const { label, kind } = data as unknown as QuestPartNodeData;
-  if (kind === 'led') return <LedNode label={label} />;
+  const { label, kind, simPattern, simOnMs, simOffMs } = data as unknown as QuestPartNodeData;
+  if (kind === 'led') return <LedNode label={label} kind={kind} simPattern={simPattern} simOnMs={simOnMs} simOffMs={simOffMs} />;
   if (kind === 'resistor') return <ResistorNode label={label} />;
   if (kind === 'board') return <BoardNode label={label} />;
   if (kind === 'pir') return <PirNode label={label} />;

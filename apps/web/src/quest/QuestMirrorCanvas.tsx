@@ -43,7 +43,7 @@ function resolvePin(
 }
 
 function MirrorInner() {
-  const { circuit, connected } = useQuestBridge();
+  const { circuit, connected, simulateResult } = useQuestBridge();
   const components = circuit?.components ?? [];
   const wires = circuit?.wires ?? [];
   const board = circuit?.board;
@@ -51,18 +51,35 @@ function MirrorInner() {
   const originX = board?.pos.x ?? components[0]?.pos?.x ?? 0;
   const originZ = board?.pos.z ?? components[0]?.pos?.z ?? 0;
 
+  const simulatedLeds = useMemo(() => {
+    const byId = new Map<string, { pattern: 'on' | 'off' | 'blink' | 'pattern'; onMs?: number; offMs?: number }>();
+    if (simulateResult?.stage === 'simulate') {
+      for (const led of simulateResult.leds) byId.set(led.ledId, led);
+    }
+    return byId;
+  }, [simulateResult]);
+
   const nodes: Node[] = useMemo(() => {
-    const list: Node[] = components.map((component) => ({
-      id: component.id,
-      type: 'questPart',
-      position: {
-        x: ((component.pos?.x ?? 0) - originX) * SCALE + 300,
-        y: ((component.pos?.z ?? 0) - originZ) * SCALE + 200,
-      },
-      data: { label: component.id, kind: component.type },
-      draggable: false,
-      selectable: false,
-    }));
+    const list: Node[] = components.map((component) => {
+      const sim = simulatedLeds.get(component.id);
+      return {
+        id: component.id,
+        type: 'questPart',
+        position: {
+          x: ((component.pos?.x ?? 0) - originX) * SCALE + 300,
+          y: ((component.pos?.z ?? 0) - originZ) * SCALE + 200,
+        },
+        data: {
+          label: component.id,
+          kind: component.type,
+          simPattern: sim?.pattern,
+          simOnMs: sim?.onMs,
+          simOffMs: sim?.offMs,
+        },
+        draggable: false,
+        selectable: false,
+      };
+    });
 
     if (board || wires.some((w) => resolvePin(w.from, components).node === BOARD_NODE_ID)) {
       list.push({
@@ -75,7 +92,7 @@ function MirrorInner() {
       });
     }
     return list;
-  }, [components, board, originX, originZ]);
+  }, [components, board, originX, originZ, simulatedLeds]);
 
   const edges: Edge[] = useMemo(
     () =>
