@@ -61,9 +61,11 @@ function getClient() {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured.');
   }
-  // Disable SDK retries: a live AR update must fall back promptly instead of
-  // silently extending beyond its latency budget.
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 0 });
+  // One retry, not the SDK's default several: enough to ride out a single
+  // transient blip (network hiccup, a 429, a 5xx) without silently extending
+  // a live AR update's latency budget too far. The SDK only retries errors
+  // it considers retryable, so a bad key or a bad request never gets retried.
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: TIMEOUT_MS, maxRetries: 1 });
 }
 
 function validateDiagnosis(value) {
