@@ -8,7 +8,7 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
