@@ -430,7 +430,7 @@ io.on('connection', (socket) => {
     // instead of masking it behind a made-up "could not transcribe" quote.
     let transcript;
     try {
-      transcript = await transcribeAudio(audioUrl, getClient());
+      transcript = await transcribeAudio(audioUrl, getClient(), language);
     } catch (error) {
       console.warn(`[voice] ${sessionId}: transcription failed: ${error.message}`);
       await emitVoiceResponse({ ok: false, message: 'I could not understand that recording. Please try again or type your question.' });

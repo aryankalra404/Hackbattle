@@ -31,13 +31,20 @@ function isAudioDataUrl(value) {
   return typeof value === 'string' && /^data:audio\/[a-z0-9.+-]+;base64,/i.test(value) && value.length <= 2 * 1024 * 1024;
 }
 
-async function transcribeAudio(audioUrl, client) {
+async function transcribeAudio(audioUrl, client, language) {
   if (!isAudioDataUrl(audioUrl)) throw new Error('Voice recording must be an audio data URL smaller than 2 MB.');
   const mimeMatch = audioUrl.match(/^data:audio\/([a-z0-9.+-]+);base64,/i);
   const extension = (mimeMatch?.[1] || 'wav').split('+')[0];
   const buffer = Buffer.from(audioUrl.slice(audioUrl.indexOf(',') + 1), 'base64');
   const file = await toFile(buffer, `recording.${extension}`);
-  const transcription = await client.audio.transcriptions.create({ file, model: STT_MODEL });
+  // Without a language hint Whisper auto-detects the spoken language and can
+  // guess wrong (e.g. transcribing "hello" into another script entirely).
+  // The UI's language selector is ISO-639-1 already, exactly what this wants.
+  const transcription = await client.audio.transcriptions.create({
+    file,
+    model: STT_MODEL,
+    ...(language ? { language } : {})
+  });
   const transcript = transcription.text?.trim();
   if (!transcript) throw new Error('OpenAI returned an empty transcript.');
   return transcript;
@@ -45,7 +52,7 @@ async function transcribeAudio(audioUrl, client) {
 
 /** Same grounding as text chat (answerChatMessage) — the only voice-specific step is the transcription. */
 async function answerVoiceMessage({ session, audioUrl, language = 'en', retrieveChunks = retrieve, client = getClient() }) {
-  const transcript = await transcribeAudio(audioUrl, client);
+  const transcript = await transcribeAudio(audioUrl, client, language);
   const answer = await answerChatMessage({ session, message: transcript, language, retrieveChunks, client });
   return { transcript, answer };
 }
