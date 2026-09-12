@@ -110,16 +110,23 @@ function getCommit(sessionId, commitId) {
  * message added a resistor" or just "commit this". Returns null when the
  * transcript is not a commit command, so the caller falls through to
  * answering it as an ordinary question instead.
+ *
+ * Requires the transcript to *start* with commit, not just contain the word
+ * anywhere — "should I commit this?" is a question, not a command, and must
+ * not silently create a commit with "this?" as the message.
  */
 function detectCommitIntent(transcript) {
   const text = typeof transcript === 'string' ? transcript.trim() : '';
-  if (!text || !/\bcommit\b/i.test(text)) return null;
+  if (!text || /\?\s*$/.test(text)) return null;
+
+  const commandMatch = text.match(/^(?:ok(?:ay)?[,.]?\s+|please\s+)?commit\b\s*/i);
+  if (!commandMatch) return null;
 
   const messageMatch = text.match(/\b(?:message|msg)\b\s*(?:is|was)?\s*[:,-]?\s*(.+)$/i);
   let message = messageMatch ? messageMatch[1].trim() : '';
   if (!message) {
     message = text
-      .replace(/^.*?\bcommit\b\s*/i, '')
+      .slice(commandMatch[0].length)
       .replace(/^(this|it|the circuit|my build)\b\s*/i, '')
       .trim();
   }
