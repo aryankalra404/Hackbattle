@@ -16,6 +16,38 @@ function aggregateConfidence(verifications) {
   return 'confirmed';
 }
 
+// A circuit the checker has already seen (the same wiring re-checked after an
+// intent-only change, or a commit that already passed a check when it was
+// built) gets the cached answer instead of a fresh paid call. Bounded so a
+// long-running demo session cannot grow this without limit.
+const MAX_CACHE_ENTRIES = 100;
+const resultCache = new Map();
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    return Object.keys(value)
+      .sort()
+      .reduce((out, key) => {
+        out[key] = canonicalize(value[key]);
+        return out;
+      }, {});
+  }
+  return value;
+}
+
+function cacheKey(circuit, intent) {
+  return JSON.stringify(canonicalize({ circuit, intent }));
+}
+
+function remember(key, entry) {
+  resultCache.set(key, entry);
+  if (resultCache.size > MAX_CACHE_ENTRIES) {
+    resultCache.delete(resultCache.keys().next().value);
+  }
+  return entry;
+}
+
 /**
  * Runs the complete fault-only grounding pipeline. Throws only if the core
  * reasoning call itself fails, so server.js can fall back to the
@@ -31,10 +63,17 @@ async function diagnoseAndVerify(circuit, options = {}) {
   const onStage = options.onStage;
   const intent = typeof options.intent === 'string' ? options.intent.trim() : '';
 
+  const key = cacheKey(circuit, intent);
+  const cached = resultCache.get(key);
+  if (cached) {
+    report(onStage, 'cache:hit', { key });
+    return cached;
+  }
+
   const diagnosis = await reason(circuit, intent);
   report(onStage, 'reasoning:received', diagnosis);
   if (!diagnosis.hasFault) {
-    return {
+    return remember(key, {
       result: {
         ...toCircuitResult(diagnosis),
         confidence: null,
@@ -46,7 +85,7 @@ async function diagnoseAndVerify(circuit, options = {}) {
       diagnosis,
       chunks: [],
       verification: null
-    };
+    });
   }
 
   try {
@@ -74,7 +113,7 @@ async function diagnoseAndVerify(circuit, options = {}) {
 
     // An uncertain result still needs student attention, so it remains a false
     // `ok` result but the verifier's message makes its uncertainty explicit.
-    return {
+    return remember(key, {
       result: {
         ok: false,
         message,
@@ -89,10 +128,13 @@ async function diagnoseAndVerify(circuit, options = {}) {
       chunks: retrievals.flatMap((retrieval) => retrieval.chunks),
       retrievals,
       verification
-    };
+    });
   } catch (error) {
     report(onStage, 'verification:failed', { message: error.message });
     console.warn(`[diagnose] grounding/verification failed, reporting the diagnosis unverified: ${error.message}`);
+    // Not cached: an unverified result should get a real shot at grounding
+    // again next time rather than being stuck "uncertain" for its whole
+    // remaining time in the cache.
     return {
       result: {
         ok: false,
