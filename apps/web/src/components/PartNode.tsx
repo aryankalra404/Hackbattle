@@ -36,10 +36,6 @@ function pinSides(part: PartDefinition): { left: string[]; right: string[] } {
   return { left: ids.slice(0, half), right: ids.slice(half) };
 }
 
-function offset(index: number, count: number): string {
-  return `${((index + 1) / (count + 1)) * 100}%`;
-}
-
 /** A grid to draw on, when the part places every pin on one. */
 export function holeGrid(part: PartDefinition): [number, number] | undefined {
   const size = part.footprint.gridSize;
@@ -113,10 +109,10 @@ export function PartNode({ data: raw, selected }: NodeProps) {
   const svg = partSymbols[part.visual.symbol2d.path];
   const rows = Math.max(left.length, right.length);
 
-  const renderPin = (pinId: string, index: number, count: number, side: 'left' | 'right') => {
+  const renderPin = (pinId: string, side: 'left' | 'right') => {
     const pin = part.pins.find((candidate) => candidate.id === pinId);
     return (
-      <div key={pinId} className={`pin-row pin-row--${side}`} style={{ top: offset(index, count) }}>
+      <div key={pinId} className={`pin-row pin-row--${side}`}>
         <Handle
           type="source"
           id={pinId}
@@ -139,12 +135,14 @@ export function PartNode({ data: raw, selected }: NodeProps) {
       </div>
 
       <div
-        className={`part-node__body${rows > 4 ? ' part-node__body--tall' : ''}`}
+        className="part-node__body"
         style={
           { '--pin-rows': rows, '--pin-row-px': `${config.ui.pinRowPx}px` } as React.CSSProperties
         }
       >
-        {left.map((pinId, index) => renderPin(pinId, index, left.length, 'left'))}
+        <div className="pin-col pin-col--left">
+          {left.map((pinId) => renderPin(pinId, 'left'))}
+        </div>
         {svg ? (
           <span
             className="part-node__symbol"
@@ -154,7 +152,9 @@ export function PartNode({ data: raw, selected }: NodeProps) {
         ) : (
           <span className="part-node__symbol part-node__symbol--missing">{part.name}</span>
         )}
-        {right.map((pinId, index) => renderPin(pinId, index, right.length, 'right'))}
+        <div className="pin-col pin-col--right">
+          {right.map((pinId) => renderPin(pinId, 'right'))}
+        </div>
       </div>
 
       {faulty && <Flag />}

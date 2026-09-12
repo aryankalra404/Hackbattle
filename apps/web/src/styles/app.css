@@ -571,21 +571,34 @@
   white-space: nowrap;
 }
 
+/* Three tracks: each side's pin labels claim their own width, and the artwork
+   takes what is left. Nothing can overlap however long a part's pin names are,
+   so the node widens to fit "Threshold" instead of printing it over the chip. */
 .part-node__body {
   position: relative;
   display: grid;
-  place-items: center;
-  padding: 4px 30px 10px;
-  /* Many-pin parts grow so their pin labels never overlap. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+  padding: 5px 7px 9px;
   min-height: max(54px, calc(var(--pin-rows, 1) * var(--pin-row-px, 15px)));
 }
 
-/* Tall nodes carry longer pin names ("D11 ~ (MOSI)"), so leave room for them. */
-.part-node__body--tall {
-  padding-inline: 78px;
+/* Rows spread down the body, so both columns stay level with each other. */
+.pin-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 4px;
+}
+
+.pin-col--right {
+  align-items: flex-end;
 }
 
 .part-node__symbol {
+  display: grid;
+  place-items: center;
   color: var(--part-accent, var(--fg-muted));
 }
 
@@ -618,20 +631,14 @@
 }
 
 .pin-row {
-  position: absolute;
   display: flex;
   align-items: center;
   gap: 4px;
-  transform: translateY(-50%);
-}
-
-.pin-row--left {
-  left: 4px;
-  flex-direction: row;
+  /* `ui.pinRowPx` is the room one pin gets, so dense parts stay readable. */
+  min-height: var(--pin-row-px, 15px);
 }
 
 .pin-row--right {
-  right: 4px;
   flex-direction: row-reverse;
 }
 
