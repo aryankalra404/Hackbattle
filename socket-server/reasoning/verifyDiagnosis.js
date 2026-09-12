@@ -32,6 +32,8 @@ const systemPrompt = `You are CircuitDoctor's verification step. Check the propo
 
 Return exactly one verification for every proposed fault. Return confirmed when the excerpt clearly supports that diagnosis. Return corrected only when the excerpt contradicts the diagnosis; finalMessage must state the corrected understanding. Do not use corrected merely to reword, add detail to, or clarify an already-supported diagnosis. Return uncertain when the excerpts do not clearly support or refute it; finalMessage must say it is unconfirmed and advise a double-check. Do not invent electrical facts, component specs, or source citations.
 
+The reasoning trace and proposed issue text name pins and nets exactly as labeled in the circuit (e.g. "3V3" for the board's 3.3V rail, "D0" for a digital pin). Copy those labels verbatim into finalMessage — never rewrite, reorder, or "correct" their digits (3V3 is not 33V), and never invent a different pin name than the one given.
+
 groundedOn must identify the supplied source filename and section heading that most directly supports your verdict. Keep finalMessage concise, plain English, and grounded in that excerpt.`;
 
 function validateVerification(value, expectedComponentIds) {
