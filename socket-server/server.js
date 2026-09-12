@@ -6,6 +6,8 @@ const { diagnoseCircuit } = require('./rules');
 const { diagnoseAndVerify } = require('./reasoning/diagnoseAndVerify');
 const { answerChatMessage, answerVoiceMessage, createVoiceReplyAudio, appendChatTurn, fallbackResponse } = require('./server/chat');
 const { createCommit, listCommits, getCommit, summarizeCommit, detectCommitIntent } = require('./commits');
+const { compileSketch } = require('./compile/compileSketch');
+const { simulateSketch } = require('./simulate/simulateSketch');
 
 const PORT = Number(process.env.PORT || 3001);
 const REASONING_DEBOUNCE_MS = 1200;
@@ -207,6 +209,34 @@ io.on('connection', (socket) => {
     // of truth for what it just typed. Other open tabs for the same session
     // get the update, same as circuit:update.
     socket.to(sessionId).emit('code:update', { sessionId, code });
+  });
+
+  // Compiles the sketch with the real Arduino toolchain, then — only if it
+  // compiles — deterministically simulates which wired LEDs it turns on or
+  // blinks and at what timing. No LLM involved; broadcast to the room so the
+  // 2D mirror and the Quest headset can both animate the result live.
+  socket.on('code:simulate', async (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    if (!sessionId) return;
+    const session = sessions.get(sessionId);
+    const code = session?.code || '';
+
+    console.log(`[simulate] ${sessionId}: compiling (${code.length} chars)`);
+    const compileResult = await compileSketch(code);
+    if (!compileResult.ok) {
+      io.to(sessionId).emit('code:simulate-result', { ok: false, stage: 'compile', errors: compileResult.errors });
+      return;
+    }
+
+    const circuit = session?.circuit || { components: [], wires: [] };
+    const simResult = simulateSketch(circuit, code);
+    console.log(`[simulate] ${sessionId}: ${simResult.leds.length} LED(s) driven, ${simResult.warnings.length} warning(s)`);
+    io.to(sessionId).emit('code:simulate-result', {
+      ok: true,
+      stage: 'simulate',
+      leds: simResult.leds,
+      warnings: simResult.warnings
+    });
   });
 
   // --- Version control -----------------------------------------------------
