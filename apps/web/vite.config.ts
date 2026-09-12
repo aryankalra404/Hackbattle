@@ -1,20 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import basicSsl from '@vitejs/plugin-basic-ssl';
 
 /**
- * The Quest browser requires HTTPS for WebXR, even on a LAN, so the dev server
- * runs with a self-signed certificate and binds to every interface.
- *
- * `/sync` is proxied through to the hub so the headset opens a WSS socket on the
- * same origin as the page. Connecting straight to a plain ws:// hub from an
- * HTTPS page would be blocked as mixed content, and a second certificate would
- * mean a second trust prompt on the headset.
+ * Plain HTTP is enough now: the headset is a native Unity/OVR build, not a
+ * browser opening this page, so there is no WebXR HTTPS requirement and no
+ * mixed-content restriction on connecting to the plain `ws://` Quest bridge
+ * (`socket-server/`, default :3001) or the CircuitGit sync hub below.
  */
 const API_PORT = process.env['API_PORT'] ?? '8787';
 
 export default defineConfig({
-  plugins: [react(), basicSsl()],
+  plugins: [react()],
   server: {
     port: 5173,
     host: true,
