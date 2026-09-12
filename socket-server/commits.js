@@ -69,6 +69,7 @@ function summarize(commit) {
     parentId: commit.parentId,
     componentCount: components,
     wireCount: wires,
+    hasCode: Boolean(commit.code && commit.code.trim()),
   };
 }
 
@@ -76,14 +77,17 @@ function summarize(commit) {
  * Create a commit for a session. `circuit` is the exact `{ components, wires }`
  * shape the Quest streams (now including each component's position/rotation
  * and the board transform) — stored as-is so a later restore can reproduce it.
+ * `code` is whatever Arduino sketch was open in the web IDE at the time, so a
+ * commit always pairs the physical build with the firmware meant to run it.
  */
-function createCommit(sessionId, { message, author, circuit }) {
+function createCommit(sessionId, { message, author, circuit, code }) {
   if (!circuit || typeof circuit !== 'object') {
     throw new Error('createCommit needs a circuit snapshot');
   }
   const history = readAll(sessionId);
   const parentId = history[0]?.id ?? null;
-  const id = hashCircuit({ circuit, parentId, message, author, at: Date.now() }).slice(0, 12);
+  const safeCode = typeof code === 'string' ? code : '';
+  const id = hashCircuit({ circuit, code: safeCode, parentId, message, author, at: Date.now() }).slice(0, 12);
   const commit = {
     id,
     parentId,
@@ -91,6 +95,7 @@ function createCommit(sessionId, { message, author, circuit }) {
     author: typeof author === 'string' && author.trim() ? author.trim() : 'quest',
     createdAt: new Date().toISOString(),
     circuit,
+    code: safeCode,
   };
   history.unshift(commit);
   writeAll(sessionId, history);

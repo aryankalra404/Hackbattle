@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../state/store.js';
 import { config } from '../state/library.js';
 import { BranchMenu } from './BranchMenu.js';
+import { useQuestBridge } from '../quest/QuestBridgeContext.js';
 
 /** Icons are inline so the app pulls in no icon dependency. */
 function Icon({ path, size = 16 }: { path: string; size?: number }) {
@@ -29,6 +30,7 @@ const ICONS = {
 export function TopBar() {
   const snapshot = useStore((s) => s.snapshot);
   const setMeta = useStore((s) => s.setMeta);
+  const { workspaceView, setWorkspaceView } = useQuestBridge();
 
   const [editingName, setEditingName] = useState(false);
 
@@ -65,6 +67,23 @@ export function TopBar() {
 
         <BranchMenu icon={<Icon path={ICONS.branch} />} />
       </div>
+
+      <nav className="topbar__tabs" aria-label="Workspace">
+        <button
+          type="button"
+          className={`tab${workspaceView === 'circuit' ? ' tab--on' : ''}`}
+          onClick={() => setWorkspaceView('circuit')}
+        >
+          Circuit
+        </button>
+        <button
+          type="button"
+          className={`tab${workspaceView === 'ide' ? ' tab--on' : ''}`}
+          onClick={() => setWorkspaceView('ide')}
+        >
+          IDE
+        </button>
+      </nav>
     </header>
   );
 }

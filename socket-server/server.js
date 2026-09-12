@@ -13,6 +13,9 @@ const REASONING_DEBOUNCE_MS = 1200;
 // injection payload, not just a UX nicety — the reasoner treats this as
 // untrusted text regardless, but a short cap costs nothing.
 const MAX_INTENT_LENGTH = 300;
+// Generous enough for a real Arduino sketch, small enough that a runaway
+// paste can't blow up the in-memory session or a commit file.
+const MAX_CODE_LENGTH = 20000;
 const sessions = new Map();
 
 function createCircuitUpdateDebouncer({ delayMs = REASONING_DEBOUNCE_MS, onFire, log = console.log }) {
@@ -117,14 +120,15 @@ io.on('connection', (socket) => {
     }
     socket.data.sessionId = sessionId;
     socket.join(sessionId);
-    if (!sessions.has(sessionId)) sessions.set(sessionId, { circuit: null, updatedAt: null, intent: '', latestResult: null, chatHistory: [] });
+    if (!sessions.has(sessionId)) sessions.set(sessionId, { circuit: null, code: '', updatedAt: null, intent: '', latestResult: null, chatHistory: [] });
     // A dashboard joining after the Quest has already built something should
     // see it immediately, not wait for the next live change.
     const existingSession = sessions.get(sessionId);
     if (existingSession.circuit) socket.emit('circuit:update', { sessionId, circuit: existingSession.circuit });
-    // Same for the last check: without this, a client that reconnects mid
-    // session (a page reload, a dropped socket) is stuck on "checking" until
-    // the next real circuit edit, even though the answer is already known.
+    // Same for whatever sketch is already open in the IDE tab, and the last
+    // check: without these, a client that reconnects mid session (a page
+    // reload, a dropped socket) is stuck stale until the next live edit.
+    if (existingSession.code) socket.emit('code:update', { sessionId, code: existingSession.code });
     if (existingSession.latestResult) socket.emit('circuit:result', existingSession.latestResult);
     console.log(`[session] ${socket.id} joined ${sessionId}`);
   });
@@ -181,16 +185,36 @@ io.on('connection', (socket) => {
         reasoningDebouncer.schedule(sessionId, session.revision);
       }
     } else {
-      sessions.set(sessionId, { circuit: null, updatedAt: null, intent, latestResult: null, chatHistory: [] });
+      sessions.set(sessionId, { circuit: null, code: '', updatedAt: null, intent, latestResult: null, chatHistory: [] });
     }
     console.log(`[intent] ${sessionId} (${socket.id}): ${intent ? `"${intent}"` : '(cleared)'}`);
+  });
+
+  // The Arduino sketch open in the web IDE. Quest never writes this — only
+  // the dashboard does — but it rides the same session so a commit can pair
+  // the code with whatever the Quest has physically built.
+  socket.on('code:update', (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    if (!sessionId) return;
+    const code = typeof payload.code === 'string' ? payload.code.slice(0, MAX_CODE_LENGTH) : '';
+    const session = sessions.get(sessionId);
+    if (session) {
+      session.code = code;
+    } else {
+      sessions.set(sessionId, { circuit: null, code, updatedAt: null, intent: '', latestResult: null, chatHistory: [] });
+    }
+    // Not echoed back to the sender: its own textarea is already the source
+    // of truth for what it just typed. Other open tabs for the same session
+    // get the update, same as circuit:update.
+    socket.to(sessionId).emit('code:update', { sessionId, code });
   });
 
   // --- Version control -----------------------------------------------------
   // A commit snapshots whatever circuit is currently mirrored for the session
   // (streamed live from the Quest, including each component's position and
-  // rotation). Unlike `sessions`, commit history is written to disk so it
-  // survives a server restart — it is the actual "version control" data.
+  // rotation) together with whatever Arduino sketch is open in the web IDE.
+  // Unlike `sessions`, commit history is written to disk so it survives a
+  // server restart — it is the actual "version control" data.
 
   socket.on('commit:create', (payload = {}) => {
     const sessionId = cleanSessionId(payload.sessionId);
@@ -199,17 +223,20 @@ io.on('connection', (socket) => {
       socket.emit('commit:error', { message: 'A valid sessionId is required.' });
       return;
     }
-    if (!session?.circuit || !Array.isArray(session.circuit.components) || session.circuit.components.length === 0) {
-      socket.emit('commit:error', { message: 'Nothing to commit yet — build something on the Quest first.' });
+    const hasComponents = Array.isArray(session?.circuit?.components) && session.circuit.components.length > 0;
+    const hasCode = typeof session?.code === 'string' && session.code.trim().length > 0;
+    if (!hasComponents && !hasCode) {
+      socket.emit('commit:error', { message: 'Nothing to commit yet — build something on the Quest or write some code first.' });
       return;
     }
     try {
       const commit = createCommit(sessionId, {
         message: payload.message,
         author: payload.author,
-        circuit: session.circuit,
+        circuit: session.circuit || { components: [], wires: [] },
+        code: session.code || '',
       });
-      console.log(`[commit] ${sessionId}: created ${commit.id} "${commit.message}" (${commit.circuit.components.length} components)`);
+      console.log(`[commit] ${sessionId}: created ${commit.id} "${commit.message}" (${commit.circuit.components.length} components, ${commit.code.length} chars of code)`);
       io.to(sessionId).emit('commit:created', { commit: summarizeCommit(commit) });
       io.to(sessionId).emit('commit:list', { sessionId, commits: listCommits(sessionId) });
     } catch (error) {
@@ -245,6 +272,7 @@ io.on('connection', (socket) => {
     sessions.set(sessionId, {
       ...previous,
       circuit: commit.circuit,
+      code: commit.code || '',
       updatedAt: new Date().toISOString(),
       revision,
       intent: previous?.intent || '',
@@ -255,8 +283,13 @@ io.on('connection', (socket) => {
     console.log(`[commit] ${sessionId}: loading ${commit.id} "${commit.message}" onto the room`);
     // The Quest and any dashboard mirror both live in this room, so restoring
     // is a broadcast: the headset rebuilds the physical layout, the dashboard
-    // updates its mirror.
-    io.to(sessionId).emit('commit:restore', { sessionId, commit: summarizeCommit(commit), circuit: commit.circuit });
+    // updates its mirror and its IDE tab.
+    io.to(sessionId).emit('commit:restore', {
+      sessionId,
+      commit: summarizeCommit(commit),
+      circuit: commit.circuit,
+      code: commit.code || '',
+    });
     reasoningDebouncer.schedule(sessionId, revision);
   });
 
@@ -343,9 +376,16 @@ io.on('connection', (socket) => {
       const commitIntent = detectCommitIntent(response.transcript);
       if (commitIntent) {
         const hasComponents = Array.isArray(session.circuit?.components) && session.circuit.components.length > 0;
-        const reply = hasComponents
+        const hasCode = typeof session.code === 'string' && session.code.trim().length > 0;
+        const canCommit = hasComponents || hasCode;
+        const reply = canCommit
           ? (() => {
-              const commit = createCommit(sessionId, { message: commitIntent.message, author: 'voice', circuit: session.circuit });
+              const commit = createCommit(sessionId, {
+                message: commitIntent.message,
+                author: 'voice',
+                circuit: session.circuit || { components: [], wires: [] },
+                code: session.code || '',
+              });
               console.log(`[voice] ${sessionId}: committed ${commit.id} "${commit.message}" by voice`);
               io.to(sessionId).emit('commit:created', { commit: summarizeCommit(commit) });
               io.to(sessionId).emit('commit:list', { sessionId, commits: listCommits(sessionId) });
@@ -353,7 +393,7 @@ io.on('connection', (socket) => {
             })()
           : 'Nothing to commit yet, build something first.';
         appendChatTurn(session, 'assistant', reply);
-        await emitVoiceResponse({ ok: hasComponents, transcript: response.transcript, message: reply });
+        await emitVoiceResponse({ ok: canCommit, transcript: response.transcript, message: reply });
         return;
       }
 

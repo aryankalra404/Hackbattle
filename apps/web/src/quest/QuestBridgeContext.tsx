@@ -35,6 +35,7 @@ export type QuestCommitSummary = {
   parentId: string | null;
   componentCount: number;
   wireCount: number;
+  hasCode: boolean;
 };
 
 /** One fault the LLM found and the RAG-grounded verifier checked. */
@@ -59,7 +60,12 @@ export type QuestCheckResult = {
 
 export type QuestChatTurn = { role: 'user' | 'assistant'; content: string };
 
+/** Which pane fills the centre of the workspace: the circuit mirror or the code editor. */
+export type WorkspaceView = 'circuit' | 'ide';
+
 type QuestBridgeState = {
+  workspaceView: WorkspaceView;
+  setWorkspaceView: (view: WorkspaceView) => void;
   serverUrl: string;
   setServerUrl: (value: string) => void;
   sessionId: string;
@@ -67,6 +73,8 @@ type QuestBridgeState = {
   connected: boolean;
   connect: () => void;
   circuit: QuestCircuit | null;
+  code: string;
+  setCode: (code: string) => void;
   commits: QuestCommitSummary[];
   error: string | null;
   busy: string | null;
@@ -103,6 +111,7 @@ function saveDefault(key: string, value: string): void {
 const QuestBridgeCtx = createContext<QuestBridgeState | null>(null);
 
 export function QuestBridgeProvider({ children }: { children: ReactNode }) {
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('circuit');
   const [serverUrl, setServerUrl] = useState(() =>
     loadDefault('circuitdoctor.serverUrl', DEFAULTS.serverUrl),
   );
@@ -111,6 +120,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   );
   const [connected, setConnected] = useState(false);
   const [circuit, setCircuit] = useState<QuestCircuit | null>(null);
+  const [code, setCodeState] = useState('');
   const [commits, setCommits] = useState<QuestCommitSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -121,6 +131,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   const [chatPending, setChatPending] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const intentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
     socketRef.current?.disconnect();
@@ -153,13 +164,19 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
       setCheckResult(payload);
       setChecking(false);
     });
+    // Not sent by this tab's own edits (server.js excludes the sender), so
+    // this only fires for another open tab's changes or a fresh session:join.
+    socket.on('code:update', (payload: { code: string }) => {
+      setCodeState(payload.code);
+    });
     socket.on('commit:list', (payload: { commits: QuestCommitSummary[] }) => {
       setCommits(payload.commits);
       setBusy(null);
     });
     socket.on('commit:created', () => setBusy(null));
-    socket.on('commit:restore', (payload: { circuit: QuestCircuit }) => {
+    socket.on('commit:restore', (payload: { circuit: QuestCircuit; code: string }) => {
       setCircuit(payload.circuit);
+      setCodeState(payload.code);
       setChecking(true);
       setBusy(null);
     });
@@ -197,6 +214,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     return () => {
       socketRef.current?.disconnect();
       if (intentDebounceRef.current) clearTimeout(intentDebounceRef.current);
+      if (codeDebounceRef.current) clearTimeout(codeDebounceRef.current);
     };
     // Only auto-connect once on mount with whatever was last saved; further
     // connects happen explicitly when the user edits the fields and reconnects.
@@ -211,6 +229,18 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
         socketRef.current.emit('circuit:intent', { sessionId, intent: value });
         setChecking(true);
       }, 600);
+    },
+    [connected, sessionId],
+  );
+
+  const setCode = useCallback(
+    (value: string) => {
+      setCodeState(value);
+      if (codeDebounceRef.current) clearTimeout(codeDebounceRef.current);
+      codeDebounceRef.current = setTimeout(() => {
+        if (!socketRef.current || !connected) return;
+        socketRef.current.emit('code:update', { sessionId, code: value });
+      }, 500);
     },
     [connected, sessionId],
   );
@@ -256,6 +286,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   );
 
   const value: QuestBridgeState = {
+    workspaceView,
+    setWorkspaceView,
     serverUrl,
     setServerUrl,
     sessionId,
@@ -263,6 +295,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     connected,
     connect,
     circuit,
+    code,
+    setCode,
     commits,
     error,
     busy,

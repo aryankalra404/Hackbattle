@@ -3,9 +3,10 @@ import { TopBar } from './components/TopBar.js';
 import { RightRail } from './components/RightRail.js';
 import { useStore } from './state/store.js';
 import { partLibrary } from './state/library.js';
-import { QuestBridgeProvider } from './quest/QuestBridgeContext.js';
+import { QuestBridgeProvider, useQuestBridge } from './quest/QuestBridgeContext.js';
 import { QuestCommitPanel } from './quest/QuestCommitPanel.js';
 import { QuestMirrorCanvas } from './quest/QuestMirrorCanvas.js';
+import { QuestCodeEditor } from './quest/QuestCodeEditor.js';
 
 function Toasts() {
   const toasts = useStore((s) => s.toasts);
@@ -88,24 +89,32 @@ function StatusBar() {
   );
 }
 
+function Workspace() {
+  const { workspaceView } = useQuestBridge();
+
+  return (
+    <main className="workspace">
+      <QuestCommitPanel />
+      {workspaceView === 'ide' ? <QuestCodeEditor /> : <QuestMirrorCanvas />}
+      <RightRail />
+    </main>
+  );
+}
+
 export function App() {
   const mode = useStore((s) => s.mode);
 
   return (
-    <div className={`app${mode === 'simulate' ? ' app--locked' : ''}`}>
-      <TopBar />
-      {mode === 'simulate' && <SessionBanner />}
+    <QuestBridgeProvider>
+      <div className={`app${mode === 'simulate' ? ' app--locked' : ''}`}>
+        <TopBar />
+        {mode === 'simulate' && <SessionBanner />}
 
-      <QuestBridgeProvider>
-        <main className="workspace">
-          <QuestCommitPanel />
-          <QuestMirrorCanvas />
-          <RightRail />
-        </main>
-      </QuestBridgeProvider>
+        <Workspace />
 
-      <StatusBar />
-      <Toasts />
-    </div>
+        <StatusBar />
+        <Toasts />
+      </div>
+    </QuestBridgeProvider>
   );
 }

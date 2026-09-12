@@ -15,6 +15,7 @@ export function QuestCommitPanel() {
     connected,
     connect,
     circuit,
+    code,
     commits,
     error,
     busy,
@@ -27,6 +28,7 @@ export function QuestCommitPanel() {
   const author = 'quest';
 
   const componentCount = circuit?.components?.length ?? 0;
+  const hasCode = code.trim().length > 0;
 
   return (
     <section className="panel quest-panel">
@@ -89,7 +91,7 @@ export function QuestCommitPanel() {
         <button
           type="button"
           className="btn btn--primary btn--sm"
-          disabled={!connected || componentCount === 0 || busy !== null}
+          disabled={!connected || (componentCount === 0 && !hasCode) || busy !== null}
           onClick={() => {
             createCommit(message, author);
             setMessage('');
@@ -118,7 +120,7 @@ export function QuestCommitPanel() {
               </span>
               <span className="commit__meta">
                 {new Date(commit.createdAt).toLocaleString()} · {commit.componentCount} parts,{' '}
-                {commit.wireCount} wires
+                {commit.wireCount} wires{commit.hasCode ? ' · code' : ''}
               </span>
             </div>
             <button
