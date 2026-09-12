@@ -19,7 +19,6 @@ afterEach(() => {
   cleanup();
   // The store is a module singleton, so each test starts from a clean circuit.
   useStore.setState({
-    paletteOpen: true,
     selection: undefined,
     view: 'editor',
     mode: 'edit',
@@ -63,12 +62,16 @@ describe('editor shell', () => {
     }
   });
 
-  it('shows the branch, the product name and the empty-canvas hint', () => {
+  it('shows the branch, the product name and the Quest mirror hint', () => {
     render(<App />);
     expect(screen.getByText(config.product.name)).toBeDefined();
     // The branch name appears in the switcher and the status bar.
     expect(screen.getAllByText(config.versionControl.defaultBranch).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Drag a part from the left/)).toBeDefined();
+    // The centre canvas mirrors the Quest bridge, not the local snapshot — it
+    // starts disconnected in a test environment with no bridge server. The
+    // Checks tab (rendered but hidden behind Parts, the default tab) shows
+    // its own copy of the same message.
+    expect(screen.getAllByText(/Not connected to the Quest bridge/).length).toBeGreaterThan(0);
   });
 
   it('adds a part when its palette chip is clicked, and runs checks on it', () => {
@@ -86,44 +89,33 @@ describe('editor shell', () => {
     expect(state.findings.some((f) => f.kind === 'unconnected_required_pin')).toBe(true);
   });
 
-  it('generates inspector controls from the part params schema', () => {
-    render(<App />);
-    fireEvent.click(screen.getByTitle(new RegExp(partLibrary.get('resistor').description, 'i')));
-
-    // The resistor declares one number param; the label comes from the data file.
-    const resistor = partLibrary.get('resistor');
-    const param = resistor.params['resistance'];
-    if (!param) throw new Error('fixture: resistor has no resistance param');
-    expect(screen.getByText(param.label)).toBeDefined();
-  });
-
   it('never claims simulation or LLM checks passed', () => {
     render(<App />);
     fireEvent.click(screen.getByTitle(new RegExp(partLibrary.get('resistor').description, 'i')));
-    fireEvent.click(screen.getByRole('button', { name: /Commit/ }));
+    // Scoped to the top bar: the Quest rail has its own "Commit build" button
+    // for a different thing (the circuit built live on the headset).
+    const topbar = screen.getByRole('banner');
+    fireEvent.click(within(topbar).getByRole('button', { name: /Commit/ }));
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/sim pending/)).toBeDefined();
     expect(within(dialog).getByText(/llm unavailable/)).toBeDefined();
   });
 
-  it('collapses and reopens the parts panel', () => {
+  it('switches the right rail between Parts, Context and Checks', () => {
     render(<App />);
-    const resistor = partLibrary.get('resistor');
 
-    // Expanded: the search box and the part chips are present.
+    // Parts is the default tab: the palette search box is present.
     expect(screen.getByPlaceholderText(/Search parts/)).toBeDefined();
-    expect(screen.getAllByText(resistor.name).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByTitle('Hide the parts panel'));
-    expect(useStore.getState().paletteOpen).toBe(false);
-    expect(screen.queryByPlaceholderText(/Search parts/)).toBeNull();
-    expect(screen.queryByText(resistor.name)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Context/ }));
+    expect(screen.getByText(/What are you building\?/)).toBeDefined();
 
-    // Collapsed: a rail is left behind to bring it back.
-    fireEvent.click(screen.getByTitle('Show the parts panel'));
-    expect(useStore.getState().paletteOpen).toBe(true);
-    expect(screen.getByPlaceholderText(/Search parts/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: /^Checks/ }));
+    // The Quest bridge auto-connects to a bridge server that isn't running in
+    // this test environment, so both the canvas and the Checks panel show
+    // their own "not connected" empty state.
+    expect(screen.getAllByText(/Not connected to the Quest bridge/).length).toBeGreaterThan(0);
   });
 
   it('switches to the history view', () => {

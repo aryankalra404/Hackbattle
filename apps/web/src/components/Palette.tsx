@@ -46,31 +46,13 @@ function PartChip({ part }: { part: PartDefinition }) {
   );
 }
 
-/** Thin rail shown in place of the palette when it is collapsed. */
-function CollapsedRail() {
-  const togglePalette = useStore((s) => s.togglePalette);
-
-  return (
-    <aside className="palette-rail">
-      <button
-        type="button"
-        className="palette-rail__button"
-        onClick={togglePalette}
-        title="Show the parts panel"
-        aria-expanded={false}
-      >
-        <span aria-hidden="true">›</span>
-        <span className="palette-rail__text">Parts</span>
-        <span className="chip">{partLibrary.all().length}</span>
-      </button>
-    </aside>
-  );
-}
-
-export function Palette() {
+/**
+ * `embedded`: rendered inside the tabbed right rail (`RightRail`), which
+ * already provides the "Parts" label and the count via its tab — so this
+ * skips its own header and just fills the space it's given.
+ */
+export function Palette({ embedded = false }: { embedded?: boolean } = {}) {
   const [query, setQuery] = useState('');
-  const paletteOpen = useStore((s) => s.paletteOpen);
-  const togglePalette = useStore((s) => s.togglePalette);
   const locked = useStore((s) => s.mode === 'simulate');
 
   const groups = useMemo(() => {
@@ -90,26 +72,16 @@ export function Palette() {
       .filter((group) => group.parts.length > 0);
   }, [query]);
 
-  if (!paletteOpen) return <CollapsedRail />;
-
   return (
-    <aside className={`palette panel${locked ? ' palette--locked' : ''}`}>
-      <div className="panel__header">
-        Parts
-        <span className="panel__header-actions">
+    <aside
+      className={`palette panel${locked ? ' palette--locked' : ''}${embedded ? ' palette--embedded' : ''}`}
+    >
+      {!embedded && (
+        <div className="panel__header">
+          Parts
           <span className="chip">{partLibrary.all().length}</span>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm panel__collapse"
-            onClick={togglePalette}
-            title="Hide the parts panel"
-            aria-expanded
-          >
-            <span aria-hidden="true">‹</span>
-            <span className="visually-hidden">Hide parts panel</span>
-          </button>
-        </span>
-      </div>
+        </div>
+      )}
 
       <div className="palette__search">
         <input

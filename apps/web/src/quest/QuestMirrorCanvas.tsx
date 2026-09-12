@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   ReactFlow,
   ReactFlowProvider,
@@ -11,6 +12,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useQuestBridge, type QuestComponentEntry } from './QuestBridgeContext.js';
 import { QuestPartNode } from './QuestPartNode.js';
+import { isArduinoPin, normalizeArduinoPin } from './arduinoPins.js';
 
 const nodeTypes = { questPart: QuestPartNode };
 
@@ -23,10 +25,21 @@ const BOARD_NODE_ID = '__board__';
  * per component, projected from its (x, z) world position onto this plane,
  * plus the board (e.g. the Arduino) as a fixed anchor for wires that end on
  * one of its pins rather than a spawned component.
+ *
+ * Resolves a wire endpoint's raw pin id (e.g. `led-1-anode`, `D13`) to the
+ * node and, where the artwork has a real lead/hole for it, the exact handle
+ * to draw the wire from — same idea as origin/harshit's per-pin Handles, just
+ * against Unity's simpler id scheme instead of a part definition's pins.
  */
-function ownerOf(pinId: string, components: QuestComponentEntry[]): string {
+function resolvePin(
+  pinId: string,
+  components: QuestComponentEntry[],
+): { node: string; handle: string | null } {
   const owner = components.find((c) => pinId === c.id || pinId.startsWith(`${c.id}-`));
-  return owner ? owner.id : BOARD_NODE_ID;
+  if (owner) return { node: owner.id, handle: pinId.slice(owner.id.length + 1) || null };
+
+  const normalized = normalizeArduinoPin(pinId);
+  return { node: BOARD_NODE_ID, handle: isArduinoPin(normalized) ? normalized : null };
 }
 
 function MirrorInner() {
@@ -51,7 +64,7 @@ function MirrorInner() {
       selectable: false,
     }));
 
-    if (board || wires.some((w) => ownerOf(w.from, components) === BOARD_NODE_ID)) {
+    if (board || wires.some((w) => resolvePin(w.from, components).node === BOARD_NODE_ID)) {
       list.push({
         id: BOARD_NODE_ID,
         type: 'questPart',
@@ -66,13 +79,19 @@ function MirrorInner() {
 
   const edges: Edge[] = useMemo(
     () =>
-      wires.map((wire, index) => ({
-        id: `${wire.from}--${wire.to}--${index}`,
-        source: ownerOf(wire.from, components),
-        target: ownerOf(wire.to, components),
-        type: 'smoothstep',
-        style: { stroke: '#0969da', strokeWidth: 2 },
-      })),
+      wires.map((wire, index) => {
+        const from = resolvePin(wire.from, components);
+        const to = resolvePin(wire.to, components);
+        return {
+          id: `${wire.from}--${wire.to}--${index}`,
+          source: from.node,
+          sourceHandle: from.handle,
+          target: to.node,
+          targetHandle: to.handle,
+          type: 'smoothstep',
+          style: { stroke: '#0969da', strokeWidth: 2 },
+        };
+      }),
     [wires, components],
   );
 
@@ -82,6 +101,7 @@ function MirrorInner() {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
         nodesDraggable={false}
         nodesConnectable={false}
         edgesReconnectable={false}

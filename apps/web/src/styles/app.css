@@ -357,52 +357,9 @@
   min-height: 0;
 }
 
-/* ---- collapsed palette rail --------------------------------------------- */
-
-.palette-rail {
-  display: flex;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-.palette-rail__button {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 0;
-  border: 0;
-  background: transparent;
-  color: var(--fg-muted);
-  /* Read the rail bottom-to-top so the label sits under the chevron. */
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-weight: 600;
-}
-
-.palette-rail__button:hover {
-  background: var(--bg-hover);
-  color: var(--fg);
-}
-
-.palette-rail__button > [aria-hidden='true'] {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.palette-rail__text {
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: 11px;
-}
-
-.palette-rail .chip {
-  writing-mode: horizontal-tb;
-  transform: rotate(180deg);
+/* No own header when tabbed inside RightRail — one row fewer. */
+.palette--embedded {
+  grid-template-rows: auto 1fr auto;
 }
 
 .palette__search {
@@ -656,16 +613,44 @@
 
 /* ---- right rail --------------------------------------------------------- */
 
-/* Parts moved here from the left rail; Inspector and Findings keep their spot. */
+/* Parts, Context and Checks as tabs over one full-height panel, instead of
+   three panels each fighting for a third of the column. */
 .rightrail {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.8fr);
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-height: 0;
 }
 
-.rightrail--palette-collapsed {
-  grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 0.8fr);
+.rightrail__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  flex-shrink: 0;
+}
+
+.rightrail__tabs .tab {
+  flex: 1;
+  justify-content: center;
+}
+
+.rightrail__panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* A class selector otherwise outranks the UA [hidden] rule, so the inactive
+   tabs would stay laid out (and visible) underneath the active one. */
+.rightrail__panel[hidden] {
+  display: none;
+}
+
+.rightrail__panel > * {
+  flex: 1;
+  min-height: 0;
 }
 
 .inspector {
@@ -1334,33 +1319,10 @@
 }
 
 @media (max-width: 900px) {
-  /* Stacked layout: the palette becomes a row, so collapsing shrinks its height. */
+  /* Stacked layout: Quest commits, the mirror canvas, then the Parts/Context/Checks rail. */
   .workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: var(--palette-row, 180px) 1fr 260px;
-  }
-
-  .workspace--palette-collapsed {
-    --palette-row: 42px;
-  }
-
-  .palette-rail__button {
-    writing-mode: horizontal-tb;
-    transform: none;
-    justify-content: center;
-    padding: 0 12px;
-  }
-
-  .palette-rail .chip {
-    transform: none;
-  }
-
-  .rightrail {
-    grid-template-rows: 1fr;
-  }
-
-  .findings {
-    display: none;
+    grid-template-rows: 220px 1fr 260px;
   }
 
   .history {
@@ -1483,4 +1445,185 @@
   color: var(--fg-subtle);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.quest-node--pir {
+  padding-bottom: 10px;
+}
+
+/* Real artwork nodes (LED, resistor, Arduino) — copied from origin/harshit's
+   part library. Sized from each SVG's own viewBox so the pin dots below line
+   up with the drawn leads/holes exactly. */
+.quest-art {
+  position: relative;
+  display: block;
+}
+
+.quest-art__svg {
+  display: block;
+  filter: drop-shadow(var(--shadow-sm));
+}
+
+.quest-art__svg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.quest-art__label {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.quest-art--led {
+  width: 96px;
+  height: 76px;
+}
+
+.quest-art--resistor {
+  width: 150px;
+  height: 55px;
+}
+
+.quest-art--board {
+  width: 320px;
+  height: 249px;
+}
+
+.quest-handle {
+  width: 5px !important;
+  height: 5px !important;
+  min-width: 0 !important;
+  background: var(--fg-subtle) !important;
+  border: 1px solid var(--bg-surface) !important;
+  border-radius: 50% !important;
+  transform: translate(-50%, -50%);
+}
+
+/* Context tab — what the user says they're building, fed to the LLM checker. */
+.quest-context {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.quest-context__body {
+  padding: 12px;
+}
+
+.quest-context__textarea {
+  resize: vertical;
+  font: inherit;
+}
+
+/* Checks tab — live circuit:result from the bridge server's LLM + rules pass. */
+.quest-checks {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+.quest-checks__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.quest-checks__spinner {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: quest-spin 0.7s linear infinite;
+}
+
+@keyframes quest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.quest-checks__body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quest-checks__verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+}
+
+.quest-checks__verdict p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.quest-checks__verdict--fail {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+.quest-checks__verdict--ok {
+  border-color: var(--success-border);
+  background: var(--success-soft);
+}
+
+.quest-checks__faults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quest-fault {
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quest-fault__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quest-fault__component {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.quest-fault__message {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.quest-fault__source {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-subtle);
 }

@@ -95,7 +95,7 @@ export function QuestCommitPanel() {
             setMessage('');
           }}
         >
-          {busy === 'commit' ? 'Committing…' : 'Commit'}
+          {busy === 'commit' ? 'Committing…' : 'Commit build'}
         </button>
       </div>
 

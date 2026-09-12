@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar.js';
-import { Palette } from './components/Palette.js';
-import { Inspector } from './components/Inspector.js';
-import { FindingsPanel } from './components/FindingsPanel.js';
+import { RightRail } from './components/RightRail.js';
 import { History } from './components/History.js';
 import { useStore } from './state/store.js';
 import { partLibrary } from './state/library.js';
@@ -93,7 +91,6 @@ function StatusBar() {
 
 export function App() {
   const view = useStore((s) => s.view);
-  const paletteOpen = useStore((s) => s.paletteOpen);
   const mode = useStore((s) => s.mode);
 
   return (
@@ -106,11 +103,7 @@ export function App() {
           <main className="workspace">
             <QuestCommitPanel />
             <QuestMirrorCanvas />
-            <div className={`rightrail${paletteOpen ? '' : ' rightrail--palette-collapsed'}`}>
-              <Palette />
-              <Inspector />
-              <FindingsPanel />
-            </div>
+            <RightRail />
           </main>
         </QuestBridgeProvider>
       ) : (

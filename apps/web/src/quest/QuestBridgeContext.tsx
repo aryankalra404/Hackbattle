@@ -37,6 +37,26 @@ export type QuestCommitSummary = {
   wireCount: number;
 };
 
+/** One fault the LLM found and the RAG-grounded verifier checked. */
+export type QuestFault = {
+  componentId: string;
+  issue: string;
+  verdict?: 'confirmed' | 'corrected' | 'uncertain';
+  finalMessage?: string;
+  groundedOn?: string;
+};
+
+/** `circuit:result` — the live LLM+rules check on whatever is currently wired. */
+export type QuestCheckResult = {
+  ok: boolean;
+  message: string;
+  confidence: 'confirmed' | 'corrected' | 'uncertain' | null;
+  groundedOn: string | null;
+  suspectedComponent: string | null;
+  suspectedComponents: string[];
+  faults: QuestFault[];
+};
+
 type QuestBridgeState = {
   serverUrl: string;
   setServerUrl: (value: string) => void;
@@ -50,6 +70,10 @@ type QuestBridgeState = {
   busy: string | null;
   createCommit: (message: string, author: string) => void;
   loadCommit: (commitId: string) => void;
+  intent: string;
+  setIntent: (intent: string) => void;
+  checkResult: QuestCheckResult | null;
+  checking: boolean;
 };
 
 const DEFAULTS = { serverUrl: 'http://localhost:3001', sessionId: 'demo-room' };
@@ -84,7 +108,11 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   const [commits, setCommits] = useState<QuestCommitSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [intent, setIntentState] = useState('');
+  const [checkResult, setCheckResult] = useState<QuestCheckResult | null>(null);
+  const [checking, setChecking] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const intentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
     socketRef.current?.disconnect();
@@ -101,9 +129,16 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     socket.on('disconnect', () => setConnected(false));
     socket.on('connect_error', (err: Error) => setError(`Could not connect: ${err.message}`));
 
-    socket.on('circuit:update', (payload: { circuit: QuestCircuit }) =>
-      setCircuit(payload.circuit),
-    );
+    socket.on('circuit:update', (payload: { circuit: QuestCircuit }) => {
+      setCircuit(payload.circuit);
+      // The server debounces ~1.2s after the last change before it re-checks,
+      // so this stays true through that window plus the LLM call itself.
+      setChecking(true);
+    });
+    socket.on('circuit:result', (payload: QuestCheckResult) => {
+      setCheckResult(payload);
+      setChecking(false);
+    });
     socket.on('commit:list', (payload: { commits: QuestCommitSummary[] }) => {
       setCommits(payload.commits);
       setBusy(null);
@@ -111,6 +146,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     socket.on('commit:created', () => setBusy(null));
     socket.on('commit:restore', (payload: { circuit: QuestCircuit }) => {
       setCircuit(payload.circuit);
+      setChecking(true);
       setBusy(null);
     });
     socket.on('commit:error', (payload: { message: string }) => {
@@ -126,10 +162,24 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     connect();
     return () => {
       socketRef.current?.disconnect();
+      if (intentDebounceRef.current) clearTimeout(intentDebounceRef.current);
     };
     // Only auto-connect once on mount with whatever was last saved; further
     // connects happen explicitly when the user edits the fields and reconnects.
   }, []);
+
+  const setIntent = useCallback(
+    (value: string) => {
+      setIntentState(value);
+      if (intentDebounceRef.current) clearTimeout(intentDebounceRef.current);
+      intentDebounceRef.current = setTimeout(() => {
+        if (!socketRef.current || !connected) return;
+        socketRef.current.emit('circuit:intent', { sessionId, intent: value });
+        setChecking(true);
+      }, 600);
+    },
+    [connected, sessionId],
+  );
 
   const createCommit = useCallback(
     (message: string, author: string) => {
@@ -164,6 +214,10 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     busy,
     createCommit,
     loadCommit,
+    intent,
+    setIntent,
+    checkResult,
+    checking,
   };
 
   return <QuestBridgeCtx.Provider value={value}>{children}</QuestBridgeCtx.Provider>;

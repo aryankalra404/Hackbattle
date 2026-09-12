@@ -188,7 +188,13 @@ function CircuitDetails() {
   );
 }
 
-export function Inspector() {
+/**
+ * `embedded`: rendered inside the tabbed right rail (`RightRail`), which
+ * already labels this tab "Context" — so the generic "Details" header is
+ * skipped. The header for a selected part stays: which part is selected is
+ * information, not decoration.
+ */
+export function Inspector({ embedded = false }: { embedded?: boolean } = {}) {
   const selection = useStore((s) => s.selection);
   const snapshot = useStore((s) => s.snapshot);
   const setLabel = useStore((s) => s.setLabel);
@@ -201,7 +207,7 @@ export function Inspector() {
   if (!selection || !component || !partLibrary.has(component.part)) {
     return (
       <aside className="inspector panel">
-        <div className="panel__header">Details</div>
+        {!embedded && <div className="panel__header">Details</div>}
         <CircuitDetails />
       </aside>
     );

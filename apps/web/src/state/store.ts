@@ -54,8 +54,6 @@ type State = {
   mode: Mode;
   /** Electrical hash the session was started on, so drift is detectable. */
   simulatingHash: string | undefined;
-  /** Whether the parts palette is expanded. Remembered per browser. */
-  paletteOpen: boolean;
 
   // ---- sync ----
   /** Room this device mirrors, or undefined when working alone. */
@@ -85,7 +83,6 @@ type Actions = {
   inspect: (commitId: string | undefined) => void;
   setCompare: (compare: { from: string; to: string } | undefined) => void;
   toggleElectricalOnly: () => void;
-  togglePalette: () => void;
   startSimulation: () => Promise<void>;
   stopSimulation: () => void;
   joinRoom: (room: string, role?: SyncRole) => void;
@@ -117,29 +114,6 @@ function nextLabel(snapshot: CircuitSnapshot, prefix: string): string {
 function recheck(snapshot: CircuitSnapshot) {
   const report = runTopologyChecks({ snapshot, library: partLibrary, config });
   return { findings: report.findings, deferred: report.deferred };
-}
-
-const PALETTE_KEY = 'circuitgit.paletteOpen';
-
-/**
- * Panel layout is a per-viewer convenience, so it lives in localStorage rather
- * than in the circuit. Storage can be unavailable (private window, blocked site
- * data), so both sides fall back to the expanded default.
- */
-function readPaletteOpen(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(PALETTE_KEY) !== 'false';
-  } catch {
-    return true;
-  }
-}
-
-function writePaletteOpen(open: boolean): void {
-  try {
-    globalThis.localStorage?.setItem(PALETTE_KEY, String(open));
-  } catch {
-    // Not being able to remember the layout is not worth an error.
-  }
 }
 
 /** Shown whenever an edit is refused because a session is live. */
@@ -174,7 +148,6 @@ export const useStore = create<State & Actions>((set, get) => ({
   electricalOnly: false,
   mode: 'edit',
   simulatingHash: undefined,
-  paletteOpen: readPaletteOpen(),
   room: undefined,
   connection: 'offline',
   peers: [],
@@ -304,13 +277,6 @@ export const useStore = create<State & Actions>((set, get) => ({
   inspect: (commitId) => set({ inspecting: commitId, compare: undefined }),
   setCompare: (compare) => set({ compare }),
   toggleElectricalOnly: () => set((state) => ({ electricalOnly: !state.electricalOnly })),
-
-  togglePalette: () =>
-    set((state) => {
-      const paletteOpen = !state.paletteOpen;
-      writePaletteOpen(paletteOpen);
-      return { paletteOpen };
-    }),
 
   // ---- simulation session -----------------------------------------------
 

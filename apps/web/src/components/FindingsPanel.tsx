@@ -6,7 +6,12 @@ import { useStore } from '../state/store.js';
  * These are structured findings from the generic rule engine — each one knows
  * which components it points at, so clicking selects and highlights them.
  */
-export function FindingsPanel() {
+/**
+ * `embedded`: rendered inside the tabbed right rail (`RightRail`), which
+ * already labels this tab "Checks" and shows the same pass/fail badge on the
+ * tab itself — so the in-panel header is skipped to avoid saying it twice.
+ */
+export function FindingsPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const findings = useStore((s) => s.findings);
   const deferred = useStore((s) => s.deferred);
   const select = useStore((s) => s.select);
@@ -16,16 +21,18 @@ export function FindingsPanel() {
 
   return (
     <section className="findings panel">
-      <div className="panel__header">
-        Checks
-        {findings.length === 0 ? (
-          <span className="badge badge--pass">clear</span>
-        ) : (
-          <span className={`badge badge--${errors.length > 0 ? 'fail' : 'warn'}`}>
-            {findings.length}
-          </span>
-        )}
-      </div>
+      {!embedded && (
+        <div className="panel__header">
+          Checks
+          {findings.length === 0 ? (
+            <span className="badge badge--pass">clear</span>
+          ) : (
+            <span className={`badge badge--${errors.length > 0 ? 'fail' : 'warn'}`}>
+              {findings.length}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="findings__list scroll">
         {findings.length === 0 && (
