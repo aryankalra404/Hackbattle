@@ -1,0 +1,2 @@
+# Generated locally from OpenAI embeddings; rebuild with npm run rag:index.
+vectorStore.json

@@ -1,0 +1,27 @@
+{
+  "name": "circuitdoctor-socket-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo-safe Socket.IO bridge for CircuitDoctor Unity/Quest clients.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test:client": "node test/client.js",
+    "test:rules": "node test/rules.js",
+    "test:reasoning": "node test/reasoning.js",
+    "test:live-behavior": "node test/liveBehavior.js",
+    "rag:index": "node scripts/buildIndex.js",
+    "test:rag": "node test/rag.js",
+    "test:pipeline": "node test/pipeline.js",
+    "test:multi-fault": "node test/multiFault.js",
+    "test:chat": "node test/chat.js",
+    "test:voice": "node test/voice.js",
+    "test:tts": "node test/tts.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "openai": "^4.86.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  }
+}
