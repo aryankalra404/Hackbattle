@@ -147,6 +147,77 @@ public class WireManager : MonoBehaviour
         return wire;
     }
 
+    /// <summary>
+    /// Live sync: every wire in the scene with both ends plugged into a pin.
+    /// These are the ones that make up the circuit the bridge reports; the rest
+    /// are spare jumpers lying on the desk.
+    /// </summary>
+    public List<JumperWire> GetPluggedWires()
+    {
+        List<JumperWire> plugged = new List<JumperWire>();
+        foreach (JumperWire wire in activeWires)
+        {
+            if (wire == null || wire.plugA == null || wire.plugB == null) continue;
+            if (wire.plugA.currentPin != null && wire.plugB.currentPin != null) plugged.Add(wire);
+        }
+        return plugged;
+    }
+
+    /// <summary>Live sync: the wire joining exactly these two pins, in either order.</summary>
+    public JumperWire FindWireBetween(PinPoint a, PinPoint b)
+    {
+        if (a == null || b == null) return null;
+        foreach (JumperWire wire in GetPluggedWires())
+        {
+            PinPoint pinA = wire.plugA.currentPin;
+            PinPoint pinB = wire.plugB.currentPin;
+            if ((pinA == a && pinB == b) || (pinA == b && pinB == a)) return wire;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Live sync: pull the wire joining these pins out of both, leaving it in the
+    /// scene as a spare rather than destroying it. A wire removed in the browser
+    /// then behaves like one a hand unplugged — it is still on the desk to reuse.
+    /// </summary>
+    public bool DisconnectPins(PinPoint a, PinPoint b)
+    {
+        JumperWire wire = FindWireBetween(a, b);
+        if (wire == null) return false;
+        wire.plugA.Unplug();
+        wire.plugB.Unplug();
+        return true;
+    }
+
+    /// <summary>
+    /// Live sync: join two pins, reusing a spare jumper already on the desk
+    /// before instantiating another, so a long editing session in the browser
+    /// does not bury the play area in wires.
+    /// </summary>
+    public JumperWire ConnectPins(PinPoint a, PinPoint b, Color color)
+    {
+        if (a == null || b == null) return null;
+
+        JumperWire spare = null;
+        foreach (JumperWire wire in activeWires)
+        {
+            if (wire == null || wire.plugA == null || wire.plugB == null) continue;
+            if (wire.plugA.currentPin == null && wire.plugB.currentPin == null)
+            {
+                spare = wire;
+                break;
+            }
+        }
+
+        if (spare == null) return SpawnWireBetween(a, b, color);
+
+        spare.transform.position = Vector3.Lerp(a.transform.position, b.transform.position, 0.5f);
+        spare.plugA.PlugInto(a);
+        spare.plugB.PlugInto(b);
+        return spare;
+    }
+
     // Stub method for backwards compatibility with WirePinInteractable
     public void SelectPin(PinPoint pin)
     {

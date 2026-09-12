@@ -99,6 +99,69 @@ public class CircuitComponentSpawner : MonoBehaviour
         nextIndex.Clear();
     }
 
+    /// <summary>
+    /// Live sync: spawn a component that appeared in the 2D workspace, keeping
+    /// its id but placing it at this spawner's own desk slot.
+    ///
+    /// The workspace's positions are canvas coordinates, not a spot on this
+    /// desk, so they are deliberately ignored here — honouring them would drop
+    /// parts on the floor at the world origin. The headset owns where a part
+    /// physically sits; its next broadcast tells the workspace where that is.
+    /// </summary>
+    public CircuitComponent SpawnWithIdentityOnDesk(string typeName, string id)
+    {
+        CircuitComponent.ComponentType type;
+        if (!TryParseType(typeName, out type))
+        {
+            Debug.LogWarning($"[CircuitComponentSpawner] Unknown component type \"{typeName}\" from the workspace.");
+            return null;
+        }
+        return SpawnWithIdentity(typeName, id, GetSpawnPosition(GetNextIndex(type)), Quaternion.identity);
+    }
+
+    /// <summary>
+    /// Live sync: remove one spawned component by id, pulling every wire out of
+    /// its terminals first so no WirePlug is left holding a PinPoint that is
+    /// about to be destroyed.
+    /// </summary>
+    public bool Despawn(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+
+        foreach (CircuitComponent component in Object.FindObjectsByType<CircuitComponent>(FindObjectsSortMode.None))
+        {
+            if (component == null || component.Id != id) continue;
+
+            foreach (PinPoint pin in component.GetPins())
+            {
+                if (pin == null) continue;
+                // GetOccupyingPlugs returns a copy, so unplugging while iterating
+                // is safe even though each Unplug mutates the live set.
+                foreach (WirePlug plug in pin.GetOccupyingPlugs())
+                {
+                    if (plug != null) plug.Unplug();
+                }
+            }
+
+            DestroyImmediate(component.gameObject);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether this spawner can actually materialise a component type — i.e. the
+    /// type is known and its prefab is assigned. The bridge asks before applying
+    /// a remote circuit so it can carry unsupported parts through untouched
+    /// instead of silently dropping them from the session.
+    /// </summary>
+    public bool CanSpawn(string typeName)
+    {
+        CircuitComponent.ComponentType type;
+        if (!TryParseType(typeName, out type)) return false;
+        return PrefabForType(type) != null;
+    }
+
     private CircuitComponent PrefabForType(CircuitComponent.ComponentType type)
     {
         switch (type)

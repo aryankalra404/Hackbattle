@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import ledArt from './assets/led-5mm.svg?raw';
-import resistorArt from './assets/resistor.svg?raw';
-import arduinoArt from './assets/arduino-uno-r3.svg?raw';
-import { ARDUINO_HANDLES } from './arduinoPins.js';
+import { holeOffset, partDef, partHeight, type PartDef, type PartHole } from '../parts/catalog.js';
+
+/**
+ * One part on the canvas, drawn with its real artwork and carrying a
+ * connectable dot over every lead, leg or header hole the drawing has — the
+ * browser equivalent of a `PinPoint` on the headset build. Positions come from
+ * the catalog, which measured them off each SVG, so a dot sits on the metal it
+ * represents at any zoom.
+ *
+ * A type with no artwork (a `pir` spawned on the Quest, say) still renders as
+ * the small labelled box the mirror has always used, so an AR build is never
+ * invisible here just because this app has no drawing for one of its parts.
+ */
 
 export type QuestPartNodeData = {
   label: string;
@@ -12,25 +21,19 @@ export type QuestPartNodeData = {
   simPattern?: 'on' | 'off' | 'blink' | 'pattern' | undefined;
   simOnMs?: number | undefined;
   simOffMs?: number | undefined;
+  /** True when the last `circuit:result` named this part as a suspect. */
+  faulted?: boolean | undefined;
 };
 
-/**
- * Real breadboard-view artwork instead of a plain box — the SVGs and the
- * Arduino's pin-hole grid are copied from `origin/harshit`'s part library
- * (`packages/parts/symbols/*.svg`, `arduino-uno-r3.yaml` `pinLayout`), which
- * drew each part at true scale with a wirable hole per pin. Reused here
- * directly rather than pulling in that branch's whole part-schema rewrite,
- * since the Quest mirror never had real part refs to begin with.
- */
-
-function Dot({ id, x, y }: { id: string; x: number; y: number }) {
+function Dot({ def, item }: { def: PartDef; item: PartHole }) {
   return (
     <Handle
       type="source"
-      id={id}
+      id={item.handle}
       position={Position.Top}
-      className="quest-handle"
-      style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
+      className={`quest-handle quest-handle--${item.kind}`}
+      style={holeOffset(def, item)}
+      title={item.label}
     />
   );
 }
@@ -41,7 +44,11 @@ function Dot({ id, x, y }: { id: string; x: number; y: number }) {
  * two independently-variable durations without per-node keyframe rules, and
  * this is simpler and just as smooth for a two-state glow).
  */
-function useSimulatedLit(pattern: QuestPartNodeData['simPattern'], onMs?: number, offMs?: number): boolean {
+function useSimulatedLit(
+  pattern: QuestPartNodeData['simPattern'],
+  onMs?: number,
+  offMs?: number,
+): boolean {
   const [lit, setLit] = useState(pattern === 'on');
 
   useEffect(() => {
@@ -70,71 +77,45 @@ function useSimulatedLit(pattern: QuestPartNodeData['simPattern'], onMs?: number
   return lit;
 }
 
-function LedNode({ label, simPattern, simOnMs, simOffMs }: QuestPartNodeData) {
-  const lit = useSimulatedLit(simPattern, simOnMs, simOffMs);
-  return (
-    <div className={`quest-art quest-art--led${lit ? ' quest-art--lit' : ''}`}>
-      <span className="quest-art__label">{label}</span>
-      <span className="quest-art__svg" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ledArt }} />
-      <Dot id="anode" x={29 / 78} y={60 / 62} />
-      <Dot id="cathode" x={49 / 78} y={53 / 62} />
-    </div>
-  );
-}
+function ArtNode({ def, data }: { def: PartDef; data: QuestPartNodeData }) {
+  const lit = useSimulatedLit(data.simPattern, data.simOnMs, data.simOffMs);
+  const className = [
+    'quest-art',
+    `quest-art--${def.type}`,
+    def.type === 'led' && lit ? 'quest-art--lit' : '',
+    data.faulted ? 'quest-art--faulted' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-function ResistorNode({ label }: { label: string }) {
   return (
-    <div className="quest-art quest-art--resistor">
-      <span className="quest-art__label">{label}</span>
-      <span
-        className="quest-art__svg"
-        aria-hidden="true"
-        dangerouslySetInnerHTML={{ __html: resistorArt }}
-      />
-      <Dot id="a" x={2 / 120} y={22 / 44} />
-      <Dot id="b" x={118 / 120} y={22 / 44} />
-    </div>
-  );
-}
-
-function BoardNode({ label }: { label: string }) {
-  return (
-    <div className="quest-art quest-art--board">
-      <span className="quest-art__label">{label}</span>
-      <span
-        className="quest-art__svg"
-        aria-hidden="true"
-        dangerouslySetInnerHTML={{ __html: arduinoArt }}
-      />
-      {ARDUINO_HANDLES.map((pin) => (
-        <Dot key={pin.id} id={pin.id} x={pin.x} y={pin.y} />
+    <div
+      className={className}
+      style={{ width: def.width, height: partHeight(def) }}
+      title={`${data.label} — ${def.label}`}
+    >
+      <span className="quest-art__label">{data.label}</span>
+      <span className="quest-art__svg" aria-hidden="true" dangerouslySetInnerHTML={{ __html: def.art }} />
+      {def.holes.map((item) => (
+        <Dot key={item.handle} def={def} item={item} />
       ))}
     </div>
   );
 }
 
-function PirNode({ label }: { label: string }) {
+/** Fallback for a part type the catalog has no drawing for — an AR-only part, say. */
+function PlainNode({ data }: { data: QuestPartNodeData }) {
   return (
-    <div className="quest-node quest-node--pir">
-      <span className="quest-node__id">{label}</span>
-      <span className="quest-node__kind">pir</span>
-      <Dot id="vcc" x={0.2} y={1} />
-      <Dot id="signal" x={0.5} y={1} />
-      <Dot id="gnd" x={0.8} y={1} />
+    <div className={`quest-node${data.faulted ? ' quest-node--faulted' : ''}`}>
+      <span className="quest-node__id">{data.label}</span>
+      <span className="quest-node__kind">{data.kind}</span>
+      <Handle type="source" id="pin" position={Position.Bottom} className="quest-handle" />
     </div>
   );
 }
 
 export function QuestPartNode({ data }: NodeProps) {
-  const { label, kind, simPattern, simOnMs, simOffMs } = data as unknown as QuestPartNodeData;
-  if (kind === 'led') return <LedNode label={label} kind={kind} simPattern={simPattern} simOnMs={simOnMs} simOffMs={simOffMs} />;
-  if (kind === 'resistor') return <ResistorNode label={label} />;
-  if (kind === 'board') return <BoardNode label={label} />;
-  if (kind === 'pir') return <PirNode label={label} />;
-  return (
-    <div className="quest-node">
-      <span className="quest-node__id">{label}</span>
-      <span className="quest-node__kind">{kind}</span>
-    </div>
-  );
+  const node = data as unknown as QuestPartNodeData;
+  const def = partDef(node.kind);
+  return def ? <ArtNode def={def} data={node} /> : <PlainNode data={node} />;
 }

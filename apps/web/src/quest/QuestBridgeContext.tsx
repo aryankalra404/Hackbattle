@@ -21,10 +21,12 @@ export type QuestComponentEntry = {
   [key: string]: unknown;
 };
 
+export type QuestWire = { from: string; to: string };
+
 export type QuestCircuit = {
   components?: QuestComponentEntry[];
-  wires?: { from: string; to: string }[];
-  board?: { pos: { x: number; y: number; z: number } };
+  wires?: QuestWire[];
+  board?: { pos: { x: number; y: number; z: number }; rot?: unknown };
 };
 
 export type QuestCommitSummary = {
@@ -90,6 +92,12 @@ type QuestBridgeState = {
   connected: boolean;
   connect: () => void;
   circuit: QuestCircuit | null;
+  /**
+   * Applies a local edit to the circuit and pushes it to the bridge, so a
+   * circuit built here reaches the rules engine, the LED simulator, the commit
+   * store and any connected headset by the same route a Quest build does.
+   */
+  editCircuit: (update: (current: QuestCircuit) => QuestCircuit) => void;
   code: string;
   setCode: (code: string) => void;
   simulateResult: QuestSimulateResult | null;
@@ -154,6 +162,14 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const intentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const codeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const circuitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The live circuit, mirrored outside React state so a local edit always
+  // builds on the newest version even when several land in one tick.
+  const circuitRef = useRef<QuestCircuit | null>(null);
+  // The server relays `circuit:update` to the whole room, sender included, so
+  // our own edit comes straight back. Ignoring the byte-identical echo keeps a
+  // part from jumping under the cursor mid-drag.
+  const lastSentCircuitRef = useRef<string>('');
 
   const connect = useCallback(() => {
     socketRef.current?.disconnect();
@@ -177,6 +193,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     socket.on('connect_error', (err: Error) => setError(`Could not connect: ${err.message}`));
 
     socket.on('circuit:update', (payload: { circuit: QuestCircuit }) => {
+      if (JSON.stringify(payload.circuit) === lastSentCircuitRef.current) return;
+      circuitRef.current = payload.circuit;
       setCircuit(payload.circuit);
       // The server debounces ~1.2s after the last change before it re-checks,
       // so this stays true through that window plus the LLM call itself.
@@ -201,6 +219,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     });
     socket.on('commit:created', () => setBusy(null));
     socket.on('commit:restore', (payload: { circuit: QuestCircuit; code: string }) => {
+      circuitRef.current = payload.circuit;
       setCircuit(payload.circuit);
       setCodeState(payload.code);
       setChecking(true);
@@ -241,6 +260,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
       socketRef.current?.disconnect();
       if (intentDebounceRef.current) clearTimeout(intentDebounceRef.current);
       if (codeDebounceRef.current) clearTimeout(codeDebounceRef.current);
+      if (circuitDebounceRef.current) clearTimeout(circuitDebounceRef.current);
     };
     // Only auto-connect once on mount with whatever was last saved; further
     // connects happen explicitly when the user edits the fields and reconnects.
@@ -269,6 +289,33 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
       }, 500);
     },
     [connected, sessionId],
+  );
+
+  /**
+   * Local circuit edits. The canvas owns the shape of the change; this just
+   * applies it and pushes the result over the same `circuit:update` event the
+   * headset uses (`QuestCircuitBridge.BuildCircuit`). Emitting is debounced so
+   * a drag sends one snapshot rather than one per animation frame, and the
+   * result is checked and simulated by the server exactly as an AR build is.
+   */
+  const editCircuit = useCallback(
+    (update: (current: QuestCircuit) => QuestCircuit) => {
+      const next = update(circuitRef.current ?? { components: [], wires: [] });
+      circuitRef.current = next;
+      setCircuit(next);
+
+      if (circuitDebounceRef.current) clearTimeout(circuitDebounceRef.current);
+      circuitDebounceRef.current = setTimeout(() => {
+        const socket = socketRef.current;
+        if (!socket?.connected) return;
+        lastSentCircuitRef.current = JSON.stringify(next);
+        socket.emit('circuit:update', { sessionId, circuit: next });
+        // The server debounces ~1.2s after the last change before re-checking,
+        // so this stays true through that window plus the LLM call itself.
+        setChecking(true);
+      }, 250);
+    },
+    [sessionId],
   );
 
   const runSimulation = useCallback(() => {
@@ -328,6 +375,7 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     connected,
     connect,
     circuit,
+    editCircuit,
     code,
     setCode,
     simulateResult,

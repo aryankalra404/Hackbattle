@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { QuestChatPanel } from '../quest/QuestChatPanel.js';
+import { QuestPartsPanel } from '../quest/QuestPartsPanel.js';
 import { QuestContextPanel } from '../quest/QuestContextPanel.js';
 import { QuestChecksPanel } from '../quest/QuestChecksPanel.js';
 import { useQuestBridge } from '../quest/QuestBridgeContext.js';
@@ -10,23 +11,31 @@ import { useQuestBridge } from '../quest/QuestBridgeContext.js';
  * Context tab (what you're building, sent to the LLM checker), and Checks
  * (the live LLM + rules check on the circuit built on the Quest).
  *
- * Parts is gone — the palette drove the old local 2D editor, which nothing
- * here still uses now that the centre canvas mirrors the Quest build.
+ * Parts is back: the centre canvas builds as well as mirrors now, and a part
+ * dragged out of that tab reaches a connected headset over the same bridge
+ * event an AR build travels on.
  *
  * One tab fills the whole rail at a time instead of three panels each
  * fighting for a third of the height — the thing that made every one of them
  * need its own cramped scroll area.
  */
 
-type Tab = 'chat' | 'context' | 'checks';
+type Tab = 'parts' | 'chat' | 'context' | 'checks';
 
 export function RightRail() {
-  const [tab, setTab] = useState<Tab>('chat');
+  const [tab, setTab] = useState<Tab>('parts');
   const { checkResult, checking } = useQuestBridge();
 
   return (
     <div className="rightrail">
       <nav className="rightrail__tabs" aria-label="Right rail">
+        <button
+          type="button"
+          className={`tab${tab === 'parts' ? ' tab--on' : ''}`}
+          onClick={() => setTab('parts')}
+        >
+          Parts
+        </button>
         <button
           type="button"
           className={`tab${tab === 'chat' ? ' tab--on' : ''}`}
@@ -56,6 +65,9 @@ export function RightRail() {
         </button>
       </nav>
 
+      <div className="rightrail__panel" hidden={tab !== 'parts'}>
+        <QuestPartsPanel />
+      </div>
       <div className="rightrail__panel" hidden={tab !== 'chat'}>
         <QuestChatPanel />
       </div>

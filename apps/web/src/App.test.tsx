@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { emptySnapshot, pinRef } from '@circuitgit/schema';
 import { electricalHash } from '@circuitgit/core';
 import { App } from './App.js';
 import { partLibrary, config } from './state/library.js';
+import { PART_DEFS } from './parts/catalog.js';
+import { PART_DRAG_TYPE } from './quest/QuestPartsPanel.js';
 import { LOCKED_MESSAGE, useStore } from './state/store.js';
 
 /**
@@ -90,6 +92,73 @@ describe('editor shell', () => {
     // this test environment, so both the canvas and the Checks panel show
     // their own "not connected" empty state.
     expect(screen.getAllByText(/Not connected to the Quest bridge/).length).toBeGreaterThan(0);
+  });
+});
+
+describe('building a circuit from the Parts tab', () => {
+  /** The card for one part. Its accessible name is the label plus its terminal count. */
+  function partCard(def: (typeof PART_DEFS)[number]) {
+    const palette = screen.getByRole('toolbar', { name: 'Parts' });
+    return within(palette).getByRole('button', { name: new RegExp(`^${def.label}, `) });
+  }
+
+  it('opens on Parts and offers every drawn component', () => {
+    render(<App />);
+    for (const def of PART_DEFS) expect(partCard(def), def.type).toBeDefined();
+  });
+
+  it('adds a part with a connectable dot on every terminal the drawing has', () => {
+    render(<App />);
+    const led = PART_DEFS.find((def) => def.type === 'led');
+    if (!led) throw new Error('fixture: no led in the catalog');
+
+    fireEvent.click(partCard(led));
+
+    // The node is labelled the way the headset names a spawned part, and
+    // carries one React Flow handle per drawn lead.
+    const node = screen.getByTitle(`led-1 — ${led.label}`);
+    expect(node.querySelectorAll('.react-flow__handle')).toHaveLength(led.holes.length);
+    expect(within(node).getByText('led-1')).toBeDefined();
+  });
+
+  it('drops the board in its own slot, and only once', () => {
+    render(<App />);
+    const board = PART_DEFS.find((def) => def.board);
+    if (!board) throw new Error('fixture: no board in the catalog');
+
+    fireEvent.click(partCard(board));
+
+    expect(screen.getByTitle(`${board.label} — ${board.label}`)).toBeDefined();
+    // The protocol carries one board per circuit, so the card stops offering it.
+    expect(partCard(board)).toHaveProperty('disabled', true);
+  });
+
+  it('carries a part onto the canvas by drag and drop, landing where it was dropped', () => {
+    render(<App />);
+    const resistor = PART_DEFS.find((def) => def.type === 'resistor');
+    if (!resistor) throw new Error('fixture: no resistor in the catalog');
+
+    // A minimal DataTransfer: jsdom does not implement one.
+    const store = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => void store.set(type, value),
+      getData: (type: string) => store.get(type) ?? '',
+      get types() {
+        return [...store.keys()];
+      },
+      effectAllowed: 'none',
+      dropEffect: 'none',
+    };
+
+    fireEvent.dragStart(partCard(resistor), { dataTransfer });
+    expect(store.get(PART_DRAG_TYPE)).toBe('resistor');
+
+    const canvas = document.querySelector('.quest-canvas');
+    if (!canvas) throw new Error('fixture: no canvas');
+    fireEvent.dragOver(canvas, { dataTransfer });
+    fireEvent.drop(canvas, { dataTransfer, clientX: 420, clientY: 300 });
+
+    expect(screen.getByTitle(`resistor-1 — ${resistor.label}`)).toBeDefined();
   });
 });
 

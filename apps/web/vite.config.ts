@@ -12,7 +12,7 @@ const API_PORT = process.env['API_PORT'] ?? '8787';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 5174,
     host: true,
     proxy: {
       '/sync': { target: `ws://localhost:${API_PORT}`, ws: true, changeOrigin: true },

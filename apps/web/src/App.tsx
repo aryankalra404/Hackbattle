@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 import { TopBar } from './components/TopBar.js';
 import { RightRail } from './components/RightRail.js';
 import { useStore } from './state/store.js';
-import { partLibrary } from './state/library.js';
+import { PART_DEFS } from './parts/catalog.js';
 import { QuestBridgeProvider, useQuestBridge } from './quest/QuestBridgeContext.js';
+import { CircuitEditorProvider } from './quest/CircuitEditorContext.js';
 import { QuestCommitPanel } from './quest/QuestCommitPanel.js';
 import { QuestMirrorCanvas } from './quest/QuestMirrorCanvas.js';
 import { QuestCodeEditor } from './quest/QuestCodeEditor.js';
@@ -63,22 +64,31 @@ function SessionBanner() {
 }
 
 function StatusBar() {
-  const snapshot = useStore((s) => s.snapshot);
-  const findings = useStore((s) => s.findings);
   const branch = useStore((s) => s.branch);
   const baseCommit = useStore((s) => s.baseCommit);
   const dirty = useStore((s) => s.dirty);
+  // Counts come from the live bridge circuit, which is what the canvas draws —
+  // whether it was built here or on the headset.
+  const { circuit, checkResult, checking } = useQuestBridge();
 
-  const errors = findings.filter((finding) => finding.severity === 'error').length;
+  const parts = (circuit?.components?.length ?? 0) + (circuit?.board ? 1 : 0);
+  const wires = circuit?.wires?.length ?? 0;
+  const faults = checkResult?.faults.length ?? 0;
 
   return (
     <footer className="statusbar">
-      <span>{Object.keys(snapshot.components).length} parts</span>
-      <span>{Object.keys(snapshot.wires).length} wires</span>
-      <span>{partLibrary.all().length} parts in library</span>
+      <span>{parts} parts</span>
+      <span>{wires} wires</span>
+      <span>{PART_DEFS.length} parts in palette</span>
       <span className="statusbar__spacer" />
-      <span className={errors > 0 ? 'statusbar__error' : undefined}>
-        {findings.length === 0 ? 'checks clear' : `${findings.length} findings`}
+      <span className={!checking && checkResult && !checkResult.ok ? 'statusbar__error' : undefined}>
+        {checking
+          ? 'checking…'
+          : !checkResult
+            ? 'not checked yet'
+            : checkResult.ok
+              ? 'checks clear'
+              : `${faults || 1} findings`}
       </span>
       <span>
         on <strong>{branch}</strong>
@@ -106,15 +116,17 @@ export function App() {
 
   return (
     <QuestBridgeProvider>
-      <div className={`app${mode === 'simulate' ? ' app--locked' : ''}`}>
-        <TopBar />
-        {mode === 'simulate' && <SessionBanner />}
+      <CircuitEditorProvider>
+        <div className={`app${mode === 'simulate' ? ' app--locked' : ''}`}>
+          <TopBar />
+          {mode === 'simulate' && <SessionBanner />}
 
-        <Workspace />
+          <Workspace />
 
-        <StatusBar />
-        <Toasts />
-      </div>
+          <StatusBar />
+          <Toasts />
+        </div>
+      </CircuitEditorProvider>
     </QuestBridgeProvider>
   );
 }

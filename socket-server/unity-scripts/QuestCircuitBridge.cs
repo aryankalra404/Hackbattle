@@ -86,6 +86,21 @@ public class QuestCircuitBridge : MonoBehaviour
     private JObject pendingRestorePayload;
     private bool hasPendingRestore;
 
+    private bool warnedAboutInspectorCircuit;
+
+    private readonly object pendingRemoteLock = new object();
+    private JObject pendingRemoteCircuit;
+    private bool hasPendingRemoteCircuit;
+
+    /// <summary>
+    /// Parts of the session circuit this scene has no prefab for — a capacitor
+    /// or an ultrasonic built in the 2D workspace, say. They are kept verbatim
+    /// and re-published by <see cref="BuildCircuit"/> so this headset's own
+    /// broadcast never deletes work it simply cannot draw.
+    /// </summary>
+    private readonly Dictionary<string, JObject> passthroughComponents = new Dictionary<string, JObject>();
+    private readonly List<JObject> passthroughWires = new List<JObject>();
+
     private void Awake()
     {
         // Virtual LEDs are intentionally visual-only and remain off. Circuit
@@ -117,6 +132,10 @@ public class QuestCircuitBridge : MonoBehaviour
         socket.JsonSerializer = new NewtonsoftJsonSerializer();
         socket.On("circuit:result", OnCircuitResult);
         socket.On("commit:restore", OnCommitRestore);
+        // Live sync from the 2D workspace. The server relays circuit:update to
+        // the whole room including the sender, so most of what arrives here is
+        // this headset's own broadcast; ApplyRemoteCircuit filters that out.
+        socket.On("circuit:update", OnRemoteCircuitUpdate);
 
         try
         {
@@ -154,6 +173,7 @@ public class QuestCircuitBridge : MonoBehaviour
         // VirtualLed state is intentionally not controlled by this bridge.
         ApplyPendingCircuitResult();
         ApplyPendingRestore();
+        ApplyPendingRemoteCircuit();
     }
 
     private void ApplyPendingCircuitResult()
@@ -239,6 +259,8 @@ public class QuestCircuitBridge : MonoBehaviour
             if (connection.pinA == null || connection.pinB == null) continue;
             wires.Add(new JObject { ["from"] = connection.pinA.pinId, ["to"] = connection.pinB.pinId });
         }
+
+        AddPassthrough(components, wires);
 
         JObject circuit = new JObject { ["components"] = components, ["wires"] = wires };
         if (boardRoot != null)
@@ -459,6 +481,305 @@ public class QuestCircuitBridge : MonoBehaviour
     }
 
     /// <summary>
+    /// A circuit built or changed somewhere else in this session — the 2D
+    /// workspace, or another client. Only the newest one is kept: updates
+    /// arrive faster than a frame while someone drags a part, and applying the
+    /// intermediate ones would be wasted work.
+    /// </summary>
+    private void OnRemoteCircuitUpdate(SocketIOResponse response)
+    {
+        JObject payload = response.GetValue<JObject>();
+        if (payload == null) return;
+        JObject circuit = payload["circuit"] as JObject;
+        if (circuit == null) return;
+
+        lock (pendingRemoteLock)
+        {
+            pendingRemoteCircuit = circuit;
+            hasPendingRemoteCircuit = true;
+        }
+    }
+
+    private void ApplyPendingRemoteCircuit()
+    {
+        JObject circuit = null;
+        lock (pendingRemoteLock)
+        {
+            if (hasPendingRemoteCircuit)
+            {
+                circuit = pendingRemoteCircuit;
+                pendingRemoteCircuit = null;
+                hasPendingRemoteCircuit = false;
+            }
+        }
+        if (circuit == null) return;
+
+        if (spawner == null || wireManager == null)
+        {
+            Debug.LogWarning("[QuestCircuitBridge] Ignoring a workspace circuit: assign WireManager and CircuitComponentSpawner in the Inspector.");
+            return;
+        }
+        if (UsesInspectorConfiguredCircuit())
+        {
+            // BuildCircuit reports the Inspector lists when nothing has been
+            // spawned, and those are fixed scene objects rather than prefab
+            // instances: nothing here could add or remove one. Warn once instead
+            // of diffing against a circuit this scene can never match.
+            if (!warnedAboutInspectorCircuit)
+            {
+                warnedAboutInspectorCircuit = true;
+                Debug.LogWarning("[QuestCircuitBridge] Live workspace sync needs runtime-spawned components. This scene is using the Inspector led/resistor/pir lists, so incoming circuits are ignored; clear those lists and spawn parts through CircuitComponentSpawner to enable it.");
+            }
+            return;
+        }
+        ApplyRemoteCircuit(circuit);
+    }
+
+    /// <summary>
+    /// True when this scene describes its circuit through the Inspector lists
+    /// rather than spawned prefabs — the setup BuildCircuit falls back to. Those
+    /// components are fixed scene objects, so a remote circuit cannot add or
+    /// remove them.
+    /// </summary>
+    private bool UsesInspectorConfiguredCircuit()
+    {
+        if (leds.Count == 0 && resistors.Count == 0 && pirSensors.Count == 0) return false;
+        return UnityEngine.Object.FindObjectsByType<CircuitComponent>(FindObjectsSortMode.None).Length == 0;
+    }
+
+    /// <summary>
+    /// Brings this scene in line with a circuit edited elsewhere, changing only
+    /// what actually differs: wires are unplugged or plugged, components are
+    /// spawned or removed, and anything already correct is left alone. A full
+    /// teardown like RestoreCircuit would destroy and respawn the whole build on
+    /// every edit made in the workspace, including whatever a hand is holding.
+    ///
+    /// Transforms are deliberately not taken from the remote circuit: the
+    /// workspace positions parts on a 2D canvas, which is not a place on this
+    /// desk. The headset owns physical placement and publishes it, and the
+    /// workspace mirrors that back — so topology travels both ways, while
+    /// position travels headset to workspace.
+    /// </summary>
+    private void ApplyRemoteCircuit(JObject circuit)
+    {
+        // Most of what arrives is this headset's own broadcast coming back off
+        // the relay. Comparing topology rather than raw JSON is what makes that
+        // reliable: floats do not survive a round trip through the server byte
+        // for byte, and the remote copy carries the workspace's positions
+        // rather than this scene's.
+        if (TopologySignature(circuit) == TopologySignature(BuildCircuit())) return;
+
+        CapturePassthrough(circuit);
+
+        Dictionary<string, string> wantedTypes = new Dictionary<string, string>();
+        foreach (JToken token in circuit["components"] as JArray ?? new JArray())
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            string id = entry.Value<string>("id");
+            string type = entry.Value<string>("type");
+            if (string.IsNullOrWhiteSpace(id) || !spawner.CanSpawn(type)) continue;
+            wantedTypes[id] = type;
+        }
+
+        // 1. Wires this circuit no longer has, first, so the pins are free
+        //    before anything holding them is taken away.
+        HashSet<string> wantedWires = WireKeys(circuit);
+        foreach (JumperWire wire in wireManager.GetPluggedWires())
+        {
+            PinPoint a = wire.plugA.currentPin;
+            PinPoint b = wire.plugB.currentPin;
+            if (a == null || b == null) continue;
+            if (!wantedWires.Contains(WireKey(a.pinId, b.pinId))) wireManager.DisconnectPins(a, b);
+        }
+
+        // 2. Components that are gone.
+        HashSet<string> present = new HashSet<string>();
+        foreach (CircuitComponent component in UnityEngine.Object.FindObjectsByType<CircuitComponent>(FindObjectsSortMode.None))
+        {
+            if (component == null || string.IsNullOrWhiteSpace(component.Id)) continue;
+            if (wantedTypes.ContainsKey(component.Id)) present.Add(component.Id);
+            else spawner.Despawn(component.Id);
+        }
+
+        // 3. Components that are new, at this desk's own spawn placement.
+        int spawned = 0;
+        foreach (KeyValuePair<string, string> wanted in wantedTypes)
+        {
+            if (present.Contains(wanted.Key)) continue;
+            if (spawner.SpawnWithIdentityOnDesk(wanted.Value, wanted.Key) != null) spawned += 1;
+        }
+
+        // 4. Wires that are new. The pin lookup is taken after spawning, so a
+        //    wire onto a part that arrived in this same update resolves too.
+        Dictionary<string, PinPoint> pinsById = new Dictionary<string, PinPoint>();
+        foreach (PinPoint pin in UnityEngine.Object.FindObjectsByType<PinPoint>(FindObjectsSortMode.None))
+        {
+            if (pin != null && !string.IsNullOrWhiteSpace(pin.pinId)) pinsById[pin.pinId] = pin;
+        }
+
+        int connected = 0;
+        foreach (JToken token in circuit["wires"] as JArray ?? new JArray())
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            string from = entry.Value<string>("from");
+            string to = entry.Value<string>("to");
+            if (from == null || to == null) continue;
+
+            PinPoint pinA, pinB;
+            if (!pinsById.TryGetValue(from, out pinA) || !pinsById.TryGetValue(to, out pinB))
+            {
+                // Expected whenever a wire lands on a part this scene has no
+                // prefab for; CapturePassthrough keeps that wire in the session.
+                continue;
+            }
+            if (wireManager.FindWireBetween(pinA, pinB) != null) continue;
+            if (wireManager.ConnectPins(pinA, pinB, Color.blue) != null) connected += 1;
+        }
+
+        // lastCircuitJson is deliberately left alone. The scene now differs from
+        // what arrived — new parts sit where this desk put them, not where the
+        // canvas did — so the next poll publishes those real positions and the
+        // workspace mirror snaps onto them. That cannot loop: the workspace
+        // broadcasts only on a user edit, never on one it receives.
+        Debug.Log($"[QuestCircuitBridge] Workspace update applied: +{spawned} components, +{connected} wires, {passthroughComponents.Count} carried through.");
+    }
+
+    /// <summary>
+    /// Re-attaches the components and wires this scene could not build to the
+    /// circuit it publishes, so the session document stays whole. Anything that
+    /// has since become real in the scene is skipped, so a prefab added later
+    /// takes over from the carried copy rather than doubling it.
+    /// </summary>
+    private void AddPassthrough(JArray components, JArray wires)
+    {
+        if (passthroughComponents.Count == 0 && passthroughWires.Count == 0) return;
+
+        HashSet<string> realIds = new HashSet<string>();
+        foreach (JToken token in components)
+        {
+            JObject entry = token as JObject;
+            string id = entry?.Value<string>("id");
+            if (!string.IsNullOrWhiteSpace(id)) realIds.Add(id);
+        }
+
+        foreach (KeyValuePair<string, JObject> carried in passthroughComponents)
+        {
+            if (realIds.Contains(carried.Key)) continue;
+            components.Add(carried.Value.DeepClone());
+        }
+
+        HashSet<string> realWires = new HashSet<string>();
+        foreach (JToken token in wires)
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            string from = entry.Value<string>("from");
+            string to = entry.Value<string>("to");
+            if (from != null && to != null) realWires.Add(WireKey(from, to));
+        }
+
+        foreach (JObject carried in passthroughWires)
+        {
+            string from = carried.Value<string>("from");
+            string to = carried.Value<string>("to");
+            if (from == null || to == null || realWires.Contains(WireKey(from, to))) continue;
+            wires.Add(carried.DeepClone());
+        }
+    }
+
+    /// <summary>
+    /// Records the parts of an incoming circuit this scene cannot build, so
+    /// BuildCircuit can publish them again unchanged. Without this, the next
+    /// broadcast from this headset would quietly delete a capacitor someone
+    /// placed in the workspace, purely because there is no prefab for one here.
+    /// </summary>
+    private void CapturePassthrough(JObject circuit)
+    {
+        passthroughComponents.Clear();
+        passthroughWires.Clear();
+
+        HashSet<string> unsupported = new HashSet<string>();
+        foreach (JToken token in circuit["components"] as JArray ?? new JArray())
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            string id = entry.Value<string>("id");
+            if (string.IsNullOrWhiteSpace(id) || spawner.CanSpawn(entry.Value<string>("type"))) continue;
+            passthroughComponents[id] = (JObject)entry.DeepClone();
+            unsupported.Add(id);
+        }
+        if (unsupported.Count == 0) return;
+
+        foreach (JToken token in circuit["wires"] as JArray ?? new JArray())
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            if (OwnedByAny(entry.Value<string>("from"), unsupported) ||
+                OwnedByAny(entry.Value<string>("to"), unsupported))
+            {
+                passthroughWires.Add((JObject)entry.DeepClone());
+            }
+        }
+    }
+
+    /// <summary>True when a wire endpoint belongs to one of these component ids.</summary>
+    private static bool OwnedByAny(string endpoint, HashSet<string> componentIds)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint)) return false;
+        foreach (string id in componentIds)
+        {
+            if (endpoint == id || endpoint.StartsWith(id + "-", StringComparison.Ordinal)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// What a circuit contains, ignoring where anything sits: components by id
+    /// and type, and wires as unordered pin pairs. Two clients agree on this
+    /// exactly when they hold the same circuit, whatever their transforms.
+    /// </summary>
+    private static string TopologySignature(JObject circuit)
+    {
+        List<string> parts = new List<string>();
+        foreach (JToken token in circuit["components"] as JArray ?? new JArray())
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            parts.Add(entry.Value<string>("id") + ":" + entry.Value<string>("type"));
+        }
+        parts.Sort(StringComparer.Ordinal);
+
+        List<string> links = new List<string>(WireKeys(circuit));
+        links.Sort(StringComparer.Ordinal);
+
+        return string.Join(",", parts) + "|" + string.Join(",", links);
+    }
+
+    /// <summary>Every wire in a circuit, as order-independent pin pairs.</summary>
+    private static HashSet<string> WireKeys(JObject circuit)
+    {
+        HashSet<string> keys = new HashSet<string>();
+        foreach (JToken token in circuit["wires"] as JArray ?? new JArray())
+        {
+            JObject entry = token as JObject;
+            if (entry == null) continue;
+            string from = entry.Value<string>("from");
+            string to = entry.Value<string>("to");
+            if (from == null || to == null) continue;
+            keys.Add(WireKey(from, to));
+        }
+        return keys;
+    }
+
+    /// <summary>A wire joins two pins; which end is "from" carries no meaning.</summary>
+    private static string WireKey(string a, string b)
+    {
+        return string.CompareOrdinal(a, b) <= 0 ? a + "|" + b : b + "|" + a;
+    }
+
+    /// <summary>
     /// Clears every spawned component and jumper wire, then rebuilds the
     /// physical layout from a saved commit: same ids, same position/rotation,
     /// same wire endpoints. Runs on the main thread (called from Update()).
@@ -470,6 +791,8 @@ public class QuestCircuitBridge : MonoBehaviour
             Debug.LogError("[QuestCircuitBridge] Cannot restore a commit: assign WireManager and CircuitComponentSpawner in the Inspector.");
             return;
         }
+
+        CapturePassthrough(circuit);
 
         wireManager.ClearAllWires();
         spawner.ClearAllComponents();

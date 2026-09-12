@@ -24,3 +24,72 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Circuit Editor ──────────────────────────────────── */
+
+.pin-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7280;
+  border: 1.5px solid #9ca3af;
+  cursor: crosshair;
+  z-index: 10;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.pin-dot:hover {
+  background: #fbbf24;
+  border-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+.pin-dot[data-active] {
+  background: #fbbf24;
+  border-color: #f59e0b;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.8);
+  transform: translate(-50%, -50%) scale(1.4);
+  animation: pin-pulse 1s ease-in-out infinite;
+}
+
+.pin-dot[data-connected] {
+  background: #22c55e;
+  border-color: #16a34a;
+}
+
+.pin-dot[data-connected]:hover {
+  background: #fbbf24;
+  border-color: #f59e0b;
+}
+
+.pin-dot[data-fault] {
+  background: #ef4444;
+  border-color: #dc2626;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.pin-label {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 2px;
+  font-size: 7px;
+  font-family: monospace;
+  color: #9ca3af;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.pin-dot:hover .pin-label,
+.pin-dot[data-active] .pin-label {
+  opacity: 1;
+}
+
+@keyframes pin-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(251, 191, 36, 0.6); }
+  50% { box-shadow: 0 0 14px rgba(251, 191, 36, 1); }
+}
