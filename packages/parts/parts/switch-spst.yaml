@@ -1,0 +1,62 @@
+id: switch-spst
+version: 1
+name: Slide Switch (SPST)
+category: Input
+description: Latching on/off switch. Stays where you put it.
+labelPrefix: SW
+source: >-
+  E-Switch EG1218 SPDT slide switch datasheet, used here as SPST: 0.3 A at
+  50 V DC contact rating. Closed-contact and open-contact resistances are the
+  ideal-switch values used for simulation, not datasheet figures.
+
+pins:
+  - { id: a, name: A }
+  - { id: b, name: B }
+requiredPins: [a, b]
+
+params:
+  closed:
+    type: boolean
+    label: Closed
+    default: false
+    description: Whether the contacts are made. Toggled from the canvas.
+
+spice:
+  element: R
+  template: 'R{label} {pin.a} {pin.b} {model}'
+  modelParam: closed
+  models:
+    'true': '0.05'
+    'false': '1e12'
+
+ratings:
+  - quantity: current
+    through: [a, b]
+    max: 0.3
+    unit: A
+    note: 0.3 A contact rating.
+  - quantity: voltage
+    across: [a, b]
+    max: 50
+    unit: V
+    note: 50 V DC contact rating.
+
+states:
+  - state: closed
+    when:
+      quantity: current
+      through: [a, b]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: open
+    otherwise: true
+
+visual:
+  symbol2d: symbols/switch-spst.svg
+  accent: '#0969da'
+  size: [2, 1]
+
+footprint:
+  breadboard:
+    pins:
+      a: [0, 0]
+      b: [2, 0]

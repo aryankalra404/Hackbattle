@@ -1,0 +1,56 @@
+id: capacitor-ceramic
+version: 1
+name: Ceramic Capacitor
+category: Passive
+description: Small non-polarised capacitor. Either way round is correct.
+labelPrefix: C
+source: >-
+  KEMET C-series X7R MLCC datasheet (C0805C104K5RAC, 100 nF 50 V X7R): 50 V DC
+  rated voltage, X7R dielectric. Preset values are the standard decade series
+  supplied in that range.
+
+pins:
+  - { id: a, name: A }
+  - { id: b, name: B }
+requiredPins: [a, b]
+
+params:
+  capacitance:
+    type: number
+    label: Capacitance
+    unit: F
+    default: 0.0000001
+    min: 0.000000000001
+    max: 0.00001
+    presets: [0.00000000001, 0.0000000001, 0.000000001, 0.00000001, 0.0000001, 0.000001]
+
+spice:
+  element: C
+  template: 'C{label} {pin.a} {pin.b} {param.capacitance}'
+
+ratings:
+  - quantity: voltage
+    across: [a, b]
+    max: 50
+    unit: V
+    note: 50 V DC rated voltage.
+
+states:
+  - state: charging
+    when:
+      quantity: current
+      through: [a, b]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: settled
+    otherwise: true
+
+visual:
+  symbol2d: symbols/capacitor-ceramic.svg
+  accent: '#8250df'
+  size: [2, 1]
+
+footprint:
+  breadboard:
+    pins:
+      a: [0, 0]
+      b: [1, 0]

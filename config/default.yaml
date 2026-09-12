@@ -1,0 +1,197 @@
+# CircuitGit configuration.
+# Everything tunable lives here. Validated against configSchema at startup; invalid = fail fast.
+# Bump configVersion whenever a change should invalidate cached check results.
+configVersion: 1
+
+# Product naming is config, never code.
+product:
+  name: CircuitGit
+  shortName: CircuitGit
+
+llm:
+  provider: anthropic
+  # Per-job settings. Model IDs and sampling are never hard-coded in engine code.
+  jobs:
+    fault_explainer:
+      model: claude-sonnet-5
+      temperature: 0.2
+      maxTokens: 4096
+      sampleCount: 1
+      timeoutMs: 30000
+      retries: 1
+      promptVersion: 1
+    blind_verifier:
+      model: claude-sonnet-5
+      temperature: 0.0
+      maxTokens: 4096
+      sampleCount: 3
+      timeoutMs: 30000
+      retries: 1
+      promptVersion: 1
+    mismatch_analyst:
+      model: claude-opus-5
+      temperature: 0.2
+      maxTokens: 4096
+      sampleCount: 1
+      timeoutMs: 45000
+      retries: 1
+      promptVersion: 1
+    intent_checker:
+      model: claude-sonnet-5
+      temperature: 0.2
+      maxTokens: 4096
+      sampleCount: 1
+      timeoutMs: 30000
+      retries: 1
+      promptVersion: 1
+    merge_advisor:
+      model: claude-opus-5
+      temperature: 0.2
+      maxTokens: 4096
+      sampleCount: 1
+      timeoutMs: 45000
+      retries: 1
+      promptVersion: 1
+    change_summarizer:
+      model: claude-sonnet-5
+      temperature: 0.3
+      maxTokens: 2048
+      sampleCount: 1
+      timeoutMs: 30000
+      retries: 1
+      promptVersion: 1
+  cache:
+    enabled: true
+    ttlSeconds: 2592000 # 30 days
+    maxEntries: 10000
+
+# Plain-code comparator that matches blind_verifier predictions against simulator output.
+comparator:
+  relativeTolerance: 0.25 # 25% for numeric quantities
+  absoluteFloor:
+    voltage: 0.05 # V, below this use the floor instead of a relative band
+    current: 0.0005 # A
+    power: 0.001 # W
+    frequency: 0.5 # Hz
+  stateMatch: exact
+  majorityThreshold: 0.5 # fraction of samples that must agree for a stable verdict
+  minSamplesForVerdict: 2
+
+simulation:
+  # Which backend serves each analysis type. Selection is config-driven, never code-driven.
+  backends:
+    op: builtin-dc
+    transient: ngspice
+  defaultAnalysis: op
+  builtinDc:
+    maxIterations: 200
+    voltageTolerance: 1.0e-6
+    currentTolerance: 1.0e-9
+    gminStepping: true
+    gmin: 1.0e-12
+  ngspice:
+    mode: native # native | wasm
+    binaryPath: ngspice
+    timeoutMs: 20000
+  transient:
+    defaultStopSeconds: 0.05
+    defaultStepSeconds: 0.00005
+    maxPoints: 20000
+
+rules:
+  # Per-kind severity and enablement. Rule parameter files live in packages/rules (data).
+  kinds:
+    rating_exceeded: { enabled: true, severity: error }
+    polarity_reversed: { enabled: true, severity: error }
+    short_circuit: { enabled: true, severity: error }
+    floating_pin: { enabled: true, severity: warning }
+    unconnected_required_pin: { enabled: true, severity: error }
+    no_ground_path: { enabled: true, severity: error }
+    power_budget: { enabled: true, severity: error }
+    hole_occupancy: { enabled: true, severity: warning }
+    user_test_failed: { enabled: true, severity: error }
+  ratingHeadroom: 1.0 # multiplier applied to a part's rated max before flagging
+  # Generic thresholds referenced by part `states` rules via config refs.
+  thresholds:
+    componentOnCurrent: 0.001 # A
+
+versionControl:
+  protectedBranches: [main]
+  defaultBranch: main
+  # Conflict resolution policy per catalogue ID: auto | auto:ours | auto:theirs | ask | block
+  merge:
+    policies:
+      C1: ask
+      C2: auto
+      C3: ask
+      C4: ask
+      C5: block
+      C6: auto
+      C7: ask
+      C8: ask
+      C9: auto
+      C10: auto
+      C11: ask
+      C12: auto
+      C13: ask
+      C14: ask
+      C15: ask
+      C16: auto
+      C17: auto
+      C18: auto:ours
+      C19: auto
+      C20: auto:ours
+      C21: ask
+      C22: ask
+      C23: block
+      C24: block
+      C25: block
+      C26: block
+      C27: block
+      C28: ask
+      C29: ask # escalates to block on protected branches
+      C30: ask
+      C31: ask # escalates to block on protected branches
+      C32: auto
+      C33: ask
+      C34: ask
+      C35: ask
+      C36: ask
+      C37: auto
+    escalateOnProtected: [C29, C31]
+    overlapNudgeDistance: 0.02 # metres / layout units for C19
+
+ar:
+  snapRadiusMetres: 0.012
+  wireSnapRadiusMetres: 0.015
+  currentParticleScale: 400.0 # particles-per-second per amp
+  maxParticleSpeed: 2.0
+  glowIntensityScale: 1.0
+  workbenchDefaultHeightMetres: 0.75
+
+ui:
+  diffColors:
+    added: '#22c55e'
+    removed: '#ef4444'
+    changed: '#f59e0b'
+  autosaveIntervalMs: 2000
+
+eval:
+  datasetSize: 40
+  mutationsPerCircuit: 4
+  thresholds:
+    explainerPrecision: 0.7
+    explainerRecall: 0.6
+    falsePositiveRate: 0.2
+    verifierAgreementRate: 0.7
+    invalidOutputRate: 0.05
+    nonexistentIdRate: 0.05
+    latencyP95Ms: 45000
+  reportDir: eval-reports
+
+checks:
+  onEdit: [topology]
+  onTest: [topology, simulation, blind_verify, explain]
+  onDetect: [topology, simulation, blind_verify, explain, intent]
+  onCommit: [topology, simulation, blind_verify, explain, intent]
+  onMerge: [topology, simulation, blind_verify, explain, connectivity]

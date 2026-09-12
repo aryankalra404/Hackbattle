@@ -1,0 +1,77 @@
+id: potentiometer
+version: 1
+name: Potentiometer
+category: Input
+description: Adjustable divider. The wiper splits the track between the two ends.
+labelPrefix: RV
+source: >-
+  Bourns PDB18 series 16 mm rotary potentiometer datasheet: 0.2 W rated power at
+  50 degC, 200 V AC maximum operating voltage. The two-resistor subcircuit is the
+  standard ideal potentiometer model, not a datasheet model.
+
+pins:
+  - { id: cw, name: CW end }
+  - { id: wiper, name: Wiper }
+  - { id: ccw, name: CCW end }
+requiredPins: [cw, ccw]
+
+params:
+  resistance:
+    type: number
+    label: Track resistance
+    unit: 'Ω'
+    default: 10000
+    min: 100
+    max: 1000000
+    presets: [1000, 5000, 10000, 50000, 100000, 500000]
+  position:
+    type: number
+    label: Wiper position
+    unit: ''
+    default: 0.5
+    min: 0.001
+    max: 0.999
+    siPrefix: false
+    description: 0 is fully CCW, 1 is fully CW.
+
+spice:
+  element: X
+  template: 'X{label} {pin.cw} {pin.wiper} {pin.ccw} POT R={param.resistance} POS={param.position}'
+  subcircuit: |
+    .subckt POT cw wiper ccw R=10000 POS=0.5
+    Rcw cw wiper {R*POS}
+    Rccw wiper ccw {R*(1-POS)}
+    .ends POT
+
+ratings:
+  - quantity: power
+    part: true
+    max: 0.2
+    unit: W
+    note: 0.2 W rated power at 50 degC.
+  - quantity: voltage
+    across: [cw, ccw]
+    max: 200
+    unit: V
+    note: 200 V maximum operating voltage.
+
+states:
+  - state: conducting
+    when:
+      quantity: current
+      through: [cw, ccw]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: idle
+    otherwise: true
+
+visual:
+  symbol2d: symbols/potentiometer.svg
+  accent: '#0969da'
+  size: [2, 2]
+
+footprint:
+  breadboard:
+    pins:
+      cw: [0, 0]
+      wiper: [1, 0]
+      ccw: [2, 0]

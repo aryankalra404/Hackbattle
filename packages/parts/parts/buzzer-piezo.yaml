@@ -1,0 +1,61 @@
+id: buzzer-piezo
+version: 1
+name: Piezo Buzzer
+category: Output
+description: Sounds when driven. The marked pin is positive.
+labelPrefix: BZ
+source: >-
+  Murata PKM22EPPH4001-B0 piezoelectric sounder datasheet: 3 to 20 V operating
+  voltage (rated here at the 20 V maximum), 3 mA maximum current consumption at
+  the rated drive. The resistor-capacitor equivalent below is the standard
+  small-signal equivalent for a piezo diaphragm, not a datasheet model.
+
+pins:
+  - { id: pos, name: '+' }
+  - { id: neg, name: '-' }
+requiredPins: [pos, neg]
+polarized: { positive: pos, negative: neg }
+
+params: {}
+
+spice:
+  element: X
+  template: 'X{label} {pin.pos} {pin.neg} PIEZO'
+  subcircuit: |
+    .subckt PIEZO p n
+    Rp p n 4700
+    Cp p n 10n
+    .ends PIEZO
+
+ratings:
+  - quantity: current
+    through: [pos, neg]
+    max: 0.003
+    unit: A
+    note: 3 mA maximum current consumption.
+  - quantity: voltage
+    across: [pos, neg]
+    max: 20
+    unit: V
+    note: 20 V maximum operating voltage.
+
+states:
+  - state: sounding
+    when:
+      quantity: current
+      through: [pos, neg]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: silent
+    otherwise: true
+
+visual:
+  symbol2d: symbols/buzzer-piezo.svg
+  glowOnState: sounding
+  accent: '#bf3989'
+  size: [2, 2]
+
+footprint:
+  breadboard:
+    pins:
+      pos: [0, 0]
+      neg: [2, 0]

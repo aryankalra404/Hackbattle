@@ -1,0 +1,62 @@
+id: diode-1n4148
+version: 1
+name: Diode (1N4148)
+category: Passive
+description: Small-signal switching diode. Conducts anode to cathode only.
+labelPrefix: D
+source: >-
+  Vishay 1N4148 small-signal fast switching diode datasheet: 100 V maximum
+  repetitive reverse voltage (VRRM), 200 mA average rectified forward current
+  (IF(AV)), 500 mW power dissipation. The .model card is the SPICE model
+  published in that datasheet's application data.
+
+pins:
+  - { id: anode, name: Anode }
+  - { id: cathode, name: Cathode }
+requiredPins: [anode, cathode]
+polarized: { positive: anode, negative: cathode }
+
+params: {}
+
+spice:
+  element: D
+  template: 'D{label} {pin.anode} {pin.cathode} {model}'
+  models:
+    default: '.model D1N4148 D(IS=2.52n RS=0.568 N=1.752 CJO=4p M=0.4 TT=20n VJ=0.75 BV=100 IBV=5u)'
+
+ratings:
+  - quantity: current
+    through: [anode, cathode]
+    max: 0.2
+    unit: A
+    note: 200 mA average rectified forward current.
+  - quantity: reverse_voltage
+    across: [cathode, anode]
+    max: 100
+    unit: V
+    note: 100 V maximum repetitive reverse voltage.
+  - quantity: power
+    part: true
+    max: 0.5
+    unit: W
+    note: 500 mW power dissipation.
+
+states:
+  - state: conducting
+    when:
+      quantity: current
+      through: [anode, cathode]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: blocking
+    otherwise: true
+
+visual:
+  symbol2d: symbols/diode-1n4148.svg
+  accent: '#57606a'
+  size: [2, 1]
+
+footprint:
+  breadboard:
+    pins:
+      anode: [0, 0]
+      cathode: [2, 0]

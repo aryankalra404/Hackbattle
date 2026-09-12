@@ -1,0 +1,61 @@
+id: resistor
+version: 1
+name: Resistor
+category: Passive
+description: Limits current. Not polarized — either way round is correct.
+labelPrefix: R
+source: >-
+  Vishay CCF series 1/4 W axial carbon-film resistor datasheet: 0.25 W rated
+  power dissipation at 70 degC, 250 V maximum working voltage. Preset values are
+  the E12 decade series.
+
+pins:
+  - { id: a, name: A }
+  - { id: b, name: B }
+requiredPins: [a, b]
+
+params:
+  resistance:
+    type: number
+    label: Resistance
+    unit: 'Ω'
+    default: 330
+    min: 0.1
+    max: 10000000
+    presets: [10, 22, 47, 100, 150, 220, 330, 470, 1000, 2200, 4700, 10000, 47000, 100000]
+
+spice:
+  element: R
+  template: 'R{label} {pin.a} {pin.b} {param.resistance}'
+
+ratings:
+  - quantity: power
+    part: true
+    max: 0.25
+    unit: W
+    note: 1/4 W rated dissipation.
+  - quantity: voltage
+    across: [a, b]
+    max: 250
+    unit: V
+    note: Maximum working voltage.
+
+states:
+  - state: conducting
+    when:
+      quantity: current
+      through: [a, b]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: idle
+    otherwise: true
+
+visual:
+  symbol2d: symbols/resistor.svg
+  accent: '#9a6700'
+  size: [2, 1]
+
+footprint:
+  breadboard:
+    pins:
+      a: [0, 0]
+      b: [3, 0]

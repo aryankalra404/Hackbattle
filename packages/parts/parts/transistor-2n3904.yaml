@@ -1,0 +1,72 @@
+id: transistor-2n3904
+version: 1
+name: NPN Transistor (2N3904)
+category: Active
+description: Small-signal NPN. A small base current switches a larger collector current.
+labelPrefix: Q
+source: >-
+  onsemi 2N3904 general-purpose NPN transistor datasheet: 200 mA maximum
+  continuous collector current (IC), 40 V collector-emitter breakdown (VCEO),
+  6 V emitter-base breakdown (VEBO), 625 mW total device dissipation at 25 degC.
+  The .model card is the Gummel-Poon model published in that datasheet.
+
+pins:
+  - { id: collector, name: Collector }
+  - { id: base, name: Base, role: input }
+  - { id: emitter, name: Emitter }
+requiredPins: [collector, base, emitter]
+
+params: {}
+
+spice:
+  element: Q
+  template: 'Q{label} {pin.collector} {pin.base} {pin.emitter} {model}'
+  models:
+    default: >-
+      .model Q2N3904 NPN(IS=6.734f XTI=3 EG=1.11 VAF=74.03 BF=416.4 NE=1.259
+      ISE=6.734f IKF=66.78m XTB=1.5 BR=.7371 NC=2 ISC=0 IKR=0 RC=1 CJC=3.638p
+      MJC=.3085 VJC=.75 FC=.5 CJE=4.493p MJE=.2593 VJE=.75 TR=239.5n TF=301.2p
+      ITF=.4 VTF=4 XTF=2 RB=10)
+
+ratings:
+  - quantity: current
+    through: [collector, emitter]
+    max: 0.2
+    unit: A
+    note: 200 mA maximum continuous collector current.
+  - quantity: voltage
+    across: [collector, emitter]
+    max: 40
+    unit: V
+    note: 40 V collector-emitter breakdown voltage.
+  - quantity: reverse_voltage
+    across: [emitter, base]
+    max: 6
+    unit: V
+    note: 6 V emitter-base breakdown voltage.
+  - quantity: power
+    part: true
+    max: 0.625
+    unit: W
+    note: 625 mW total device dissipation at 25 degC.
+
+states:
+  - state: conducting
+    when:
+      quantity: current
+      through: [collector, emitter]
+      gt: { configRef: rules.thresholds.componentOnCurrent }
+  - state: cutoff
+    otherwise: true
+
+visual:
+  symbol2d: symbols/transistor-2n3904.svg
+  accent: '#1f6feb'
+  size: [2, 2]
+
+footprint:
+  breadboard:
+    pins:
+      emitter: [0, 0]
+      base: [1, 0]
+      collector: [2, 0]

@@ -1,0 +1,10 @@
+node_modules
+dist
+pnpm-lock.yaml
+socket-server
+web
+legacy
+quiz_cyber
+yolo
+eval-reports
+*.tsbuildinfo
