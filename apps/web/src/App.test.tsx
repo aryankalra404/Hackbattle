@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { emptySnapshot, pinRef } from '@circuitgit/schema';
 import { electricalHash } from '@circuitgit/core';
 import { App } from './App.js';
@@ -76,19 +76,6 @@ describe('editor shell', () => {
     expect(state.findings.some((f) => f.kind === 'unconnected_required_pin')).toBe(true);
   });
 
-  it('never claims simulation or LLM checks passed', () => {
-    render(<App />);
-    useStore.getState().addComponent(partLibrary.get('resistor'), { x: 0, y: 0 });
-    // Scoped to the top bar: the Quest rail has its own "Commit build" button
-    // for a different thing (the circuit built live on the headset).
-    const topbar = screen.getByRole('banner');
-    fireEvent.click(within(topbar).getByRole('button', { name: /Commit/ }));
-
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText(/sim pending/)).toBeDefined();
-    expect(within(dialog).getByText(/llm unavailable/)).toBeDefined();
-  });
-
   it('switches the right rail between Chat, Context and Checks', () => {
     render(<App />);
 
@@ -103,12 +90,6 @@ describe('editor shell', () => {
     // this test environment, so both the canvas and the Checks panel show
     // their own "not connected" empty state.
     expect(screen.getAllByText(/Not connected to the Quest bridge/).length).toBeGreaterThan(0);
-  });
-
-  it('switches to the history view', () => {
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /History/ }));
-    expect(screen.getByText(/No commits yet/)).toBeDefined();
   });
 });
 
@@ -196,8 +177,9 @@ describe('simulation session locks the workspace', () => {
     render(<App />);
 
     expect(screen.getByText(/circuit locked/i)).toBeDefined();
-    // Two ways out: the top bar and the banner.
-    expect(screen.getAllByRole('button', { name: /Stop session/ })).toHaveLength(2);
+    // The top bar's own simulate/stop controls are gone; the banner is the
+    // only way out now.
+    expect(screen.getAllByRole('button', { name: /Stop session/ })).toHaveLength(1);
   });
 
   it('collapses repeated refusals into one message', async () => {

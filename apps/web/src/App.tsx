@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar.js';
 import { RightRail } from './components/RightRail.js';
-import { History } from './components/History.js';
 import { useStore } from './state/store.js';
 import { partLibrary } from './state/library.js';
 import { QuestBridgeProvider } from './quest/QuestBridgeContext.js';
@@ -90,7 +89,6 @@ function StatusBar() {
 }
 
 export function App() {
-  const view = useStore((s) => s.view);
   const mode = useStore((s) => s.mode);
 
   return (
@@ -98,19 +96,13 @@ export function App() {
       <TopBar />
       {mode === 'simulate' && <SessionBanner />}
 
-      {view === 'editor' ? (
-        <QuestBridgeProvider>
-          <main className="workspace">
-            <QuestCommitPanel />
-            <QuestMirrorCanvas />
-            <RightRail />
-          </main>
-        </QuestBridgeProvider>
-      ) : (
-        <main className="workspace workspace--history">
-          <History />
+      <QuestBridgeProvider>
+        <main className="workspace">
+          <QuestCommitPanel />
+          <QuestMirrorCanvas />
+          <RightRail />
         </main>
-      )}
+      </QuestBridgeProvider>
 
       <StatusBar />
       <Toasts />
