@@ -10,9 +10,8 @@ import { useQuestBridge } from '../quest/QuestBridgeContext.js';
  * Context tab (what you're building, sent to the LLM checker), and Checks
  * (the live LLM + rules check on the circuit built on the Quest).
  *
- * Parts is temporarily out — the palette drove the old local 2D editor,
- * which nothing here still uses now that the centre canvas mirrors the
- * Quest build. `Palette.tsx` is untouched if that comes back later.
+ * Parts is gone — the palette drove the old local 2D editor, which nothing
+ * here still uses now that the centre canvas mirrors the Quest build.
  *
  * One tab fills the whole rail at a time instead of three panels each
  * fighting for a third of the height — the thing that made every one of them
