@@ -1540,7 +1540,9 @@
   letter-spacing: 0.03em;
 }
 
-.quest-node--pir {
+.quest-node--pir,
+.quest-node--motor,
+.quest-node--ultrasonic {
   padding-bottom: 10px;
 }
 

@@ -11,6 +11,8 @@ public class CircuitComponentSpawner : MonoBehaviour
     [SerializeField] private CircuitComponent ledPrefab;
     [SerializeField] private CircuitComponent resistorPrefab;
     [SerializeField] private CircuitComponent pirPrefab;
+    [SerializeField] private CircuitComponent motorPrefab;
+    [SerializeField] private CircuitComponent ultrasonicPrefab;
 
     [Header("Spawn placement")]
     [SerializeField] private Transform componentParent;
@@ -29,6 +31,8 @@ public class CircuitComponentSpawner : MonoBehaviour
     public void SpawnLed() => Spawn(ledPrefab);
     public void SpawnResistor() => Spawn(resistorPrefab);
     public void SpawnPir() => Spawn(pirPrefab);
+    public void SpawnMotor() => Spawn(motorPrefab);
+    public void SpawnUltrasonic() => Spawn(ultrasonicPrefab);
 
     public CircuitComponent Spawn(CircuitComponent prefab)
     {
@@ -108,6 +112,8 @@ public class CircuitComponentSpawner : MonoBehaviour
             case CircuitComponent.ComponentType.Led: return ledPrefab;
             case CircuitComponent.ComponentType.Resistor: return resistorPrefab;
             case CircuitComponent.ComponentType.Pir: return pirPrefab;
+            case CircuitComponent.ComponentType.Motor: return motorPrefab;
+            case CircuitComponent.ComponentType.Ultrasonic: return ultrasonicPrefab;
             default: return null;
         }
     }
@@ -119,6 +125,8 @@ public class CircuitComponentSpawner : MonoBehaviour
             case "led": type = CircuitComponent.ComponentType.Led; return true;
             case "resistor": type = CircuitComponent.ComponentType.Resistor; return true;
             case "pir": type = CircuitComponent.ComponentType.Pir; return true;
+            case "motor": type = CircuitComponent.ComponentType.Motor; return true;
+            case "ultrasonic": type = CircuitComponent.ComponentType.Ultrasonic; return true;
             default: type = CircuitComponent.ComponentType.Led; return false;
         }
     }
@@ -170,6 +178,8 @@ public class CircuitComponentSpawner : MonoBehaviour
             case CircuitComponent.ComponentType.Led: return "led";
             case CircuitComponent.ComponentType.Resistor: return "resistor";
             case CircuitComponent.ComponentType.Pir: return "pir";
+            case CircuitComponent.ComponentType.Motor: return "motor";
+            case CircuitComponent.ComponentType.Ultrasonic: return "ultrasonic";
             default: return "component";
         }
     }

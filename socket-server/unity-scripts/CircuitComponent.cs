@@ -7,7 +7,7 @@ using UnityEngine;
 /// </summary>
 public class CircuitComponent : MonoBehaviour
 {
-    public enum ComponentType { Led, Resistor, Pir }
+    public enum ComponentType { Led, Resistor, Pir, Motor, Ultrasonic }
 
     [SerializeField] private ComponentType componentType;
     [SerializeField] private string componentId;
@@ -25,6 +25,16 @@ public class CircuitComponent : MonoBehaviour
     [SerializeField] private PinPoint signal;
     [SerializeField] private PinPoint gnd;
 
+    [Header("DC Motor terminals")]
+    [SerializeField] private PinPoint motorPositive;
+    [SerializeField] private PinPoint motorNegative;
+
+    [Header("Ultrasonic (HC-SR04) terminals")]
+    [SerializeField] private PinPoint ultrasonicVcc;
+    [SerializeField] private PinPoint ultrasonicTrig;
+    [SerializeField] private PinPoint ultrasonicEcho;
+    [SerializeField] private PinPoint ultrasonicGnd;
+
     public ComponentType Type => componentType;
     public string Id => componentId;
     public PinPoint Anode => anode;
@@ -34,6 +44,12 @@ public class CircuitComponent : MonoBehaviour
     public PinPoint Vcc => vcc;
     public PinPoint Signal => signal;
     public PinPoint Gnd => gnd;
+    public PinPoint MotorPositive => motorPositive;
+    public PinPoint MotorNegative => motorNegative;
+    public PinPoint UltrasonicVcc => ultrasonicVcc;
+    public PinPoint UltrasonicTrig => ultrasonicTrig;
+    public PinPoint UltrasonicEcho => ultrasonicEcho;
+    public PinPoint UltrasonicGnd => ultrasonicGnd;
 
     public void ConfigureIdentity(string id)
     {
@@ -57,6 +73,16 @@ public class CircuitComponent : MonoBehaviour
                 SetPinId(vcc, $"{id}-vcc");
                 SetPinId(signal, $"{id}-signal");
                 SetPinId(gnd, $"{id}-gnd");
+                break;
+            case ComponentType.Motor:
+                SetPinId(motorPositive, $"{id}-positive");
+                SetPinId(motorNegative, $"{id}-negative");
+                break;
+            case ComponentType.Ultrasonic:
+                SetPinId(ultrasonicVcc, $"{id}-vcc");
+                SetPinId(ultrasonicTrig, $"{id}-trig");
+                SetPinId(ultrasonicEcho, $"{id}-echo");
+                SetPinId(ultrasonicGnd, $"{id}-gnd");
                 break;
         }
     }
@@ -87,6 +113,16 @@ public class CircuitComponent : MonoBehaviour
                 yield return vcc;
                 yield return signal;
                 yield return gnd;
+                break;
+            case ComponentType.Motor:
+                yield return motorPositive;
+                yield return motorNegative;
+                break;
+            case ComponentType.Ultrasonic:
+                yield return ultrasonicVcc;
+                yield return ultrasonicTrig;
+                yield return ultrasonicEcho;
+                yield return ultrasonicGnd;
                 break;
         }
     }

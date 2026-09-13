@@ -125,12 +125,38 @@ function PirNode({ label }: { label: string }) {
   );
 }
 
+function MotorNode({ label }: { label: string }) {
+  return (
+    <div className="quest-node quest-node--motor">
+      <span className="quest-node__id">{label}</span>
+      <span className="quest-node__kind">motor</span>
+      <Dot id="positive" x={0.3} y={1} />
+      <Dot id="negative" x={0.7} y={1} />
+    </div>
+  );
+}
+
+function UltrasonicNode({ label }: { label: string }) {
+  return (
+    <div className="quest-node quest-node--ultrasonic">
+      <span className="quest-node__id">{label}</span>
+      <span className="quest-node__kind">ultrasonic</span>
+      <Dot id="vcc" x={0.15} y={1} />
+      <Dot id="trig" x={0.4} y={1} />
+      <Dot id="echo" x={0.65} y={1} />
+      <Dot id="gnd" x={0.9} y={1} />
+    </div>
+  );
+}
+
 export function QuestPartNode({ data }: NodeProps) {
   const { label, kind, simPattern, simOnMs, simOffMs } = data as unknown as QuestPartNodeData;
   if (kind === 'led') return <LedNode label={label} kind={kind} simPattern={simPattern} simOnMs={simOnMs} simOffMs={simOffMs} />;
   if (kind === 'resistor') return <ResistorNode label={label} />;
   if (kind === 'board') return <BoardNode label={label} />;
   if (kind === 'pir') return <PirNode label={label} />;
+  if (kind === 'motor') return <MotorNode label={label} />;
+  if (kind === 'ultrasonic') return <UltrasonicNode label={label} />;
   return (
     <div className="quest-node">
       <span className="quest-node__id">{label}</span>

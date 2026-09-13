@@ -219,6 +219,12 @@ public class QuestCircuitBridge : MonoBehaviour
                     case CircuitComponent.ComponentType.Pir:
                         entry = new JObject { ["id"] = component.Id, ["type"] = "pir", ["vcc"] = component.Vcc.pinId, ["signal"] = component.Signal.pinId, ["gnd"] = component.Gnd.pinId };
                         break;
+                    case CircuitComponent.ComponentType.Motor:
+                        entry = new JObject { ["id"] = component.Id, ["type"] = "motor", ["positive"] = component.MotorPositive.pinId, ["negative"] = component.MotorNegative.pinId };
+                        break;
+                    case CircuitComponent.ComponentType.Ultrasonic:
+                        entry = new JObject { ["id"] = component.Id, ["type"] = "ultrasonic", ["vcc"] = component.UltrasonicVcc.pinId, ["trig"] = component.UltrasonicTrig.pinId, ["echo"] = component.UltrasonicEcho.pinId, ["gnd"] = component.UltrasonicGnd.pinId };
+                        break;
                     default:
                         continue;
                 }
