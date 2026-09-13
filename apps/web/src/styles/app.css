@@ -1356,19 +1356,88 @@
   color: var(--fg-subtle);
 }
 
+/* White background, CodeMirror's classic light-theme palette — the same
+   one Tinkercad's own code editor uses. Minimal: comments, keywords/
+   constants, strings and library calls each get one restrained color;
+   everything else (numbers, identifiers) stays plain text. */
+.quest-ide__code {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.quest-ide__gutter {
+  flex: 0 0 auto;
+  width: 46px;
+  padding: 14px 0;
+  overflow: hidden;
+  background: #f6f8fa;
+  border-right: 1px solid var(--border-subtle);
+  user-select: none;
+}
+
+.quest-ide__gutter-line {
+  position: relative;
+  height: 20px;
+  padding-right: 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: right;
+  color: var(--fg-subtle);
+}
+
+.quest-ide__error-dot {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger, #e5484d);
+  box-shadow: 0 0 4px rgba(229, 72, 77, 0.7);
+}
+
+.quest-ide__editor-stack {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.quest-ide__highlight,
+.quest-ide__editor {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 14px 16px;
+  border: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 20px;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.quest-ide__highlight {
+  color: var(--fg);
+  background: transparent;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .quest-ide__editor {
   width: 100%;
   height: 100%;
-  min-height: 0;
-  padding: 14px 16px;
-  border: 0;
   resize: none;
-  background: var(--bg-canvas);
-  color: var(--fg);
-  font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.6;
-  tab-size: 2;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
 }
 
 .quest-ide__editor:focus {
@@ -1379,14 +1448,26 @@
   color: var(--fg-subtle);
 }
 
+/* Syntax colors — CodeMirror's classic default theme, the same one under
+   Tinkercad's own code editor. */
+.tok-comment { color: #a50; font-style: italic; }
+.tok-string { color: #a11; }
+.tok-number { color: #164; }
+.tok-keyword,
+.tok-type,
+.tok-constant,
+.tok-preprocessor { color: #708; }
+.tok-function { color: #219; }
+
 .quest-ide__result {
-  max-height: 40%;
+  min-height: 96px;
+  max-height: 260px;
   overflow-y: auto;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border-subtle);
   border-radius: 0 0 var(--radius) var(--radius);
   background: var(--bg-surface);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .quest-ide__result-title {
