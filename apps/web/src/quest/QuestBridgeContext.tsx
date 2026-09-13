@@ -80,6 +80,12 @@ export type QuestSimulateResult =
   | { ok: false; stage: 'compile'; errors: QuestCompileError[] }
   | { ok: true; stage: 'simulate'; leds: QuestSimulatedLed[]; warnings: string[] };
 
+/** `sensor:proximity` — a live, continuous signal from Unity (not the one-shot
+ * code:simulate), separate from simulateResult so it never fights the last
+ * compiled sketch's result: a hand near the ultrasonic prop lights whichever
+ * wired LEDs Unity reports, live, regardless of what code is loaded. */
+export type QuestProximityEvent = { near: boolean; ledStates?: Record<string, boolean> };
+
 type QuestBridgeState = {
   workspaceView: WorkspaceView;
   setWorkspaceView: (view: WorkspaceView) => void;
@@ -95,6 +101,8 @@ type QuestBridgeState = {
   simulateResult: QuestSimulateResult | null;
   simulating: boolean;
   runSimulation: () => void;
+  proximityNear: boolean;
+  proximityLedStates: Record<string, boolean>;
   commits: QuestCommitSummary[];
   error: string | null;
   busy: string | null;
@@ -155,6 +163,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
   const [code, setCodeState] = useState('');
   const [simulateResult, setSimulateResult] = useState<QuestSimulateResult | null>(null);
   const [simulating, setSimulating] = useState(false);
+  const [proximityNear, setProximityNear] = useState(false);
+  const [proximityLedStates, setProximityLedStates] = useState<Record<string, boolean>>({});
   const [commits, setCommits] = useState<QuestCommitSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -206,6 +216,13 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     socket.on('code:simulate-result', (payload: QuestSimulateResult) => {
       setSimulateResult(payload);
       setSimulating(false);
+    });
+    // Continuous live signal from UltrasonicProximityController.cs, not tied
+    // to any compiled sketch — a hand near the sensor prop lights whichever
+    // wired LEDs Unity reports, independent of the last code:simulate result.
+    socket.on('sensor:proximity', (payload: QuestProximityEvent) => {
+      setProximityNear(!!payload.near);
+      if (payload.ledStates) setProximityLedStates((prev) => ({ ...prev, ...payload.ledStates }));
     });
     socket.on('commit:list', (payload: { commits: QuestCommitSummary[] }) => {
       setCommits(payload.commits);
@@ -358,6 +375,8 @@ export function QuestBridgeProvider({ children }: { children: ReactNode }) {
     simulateResult,
     simulating,
     runSimulation,
+    proximityNear,
+    proximityLedStates,
     commits,
     error,
     busy,

@@ -1540,9 +1540,7 @@
   letter-spacing: 0.03em;
 }
 
-.quest-node--pir,
-.quest-node--motor,
-.quest-node--ultrasonic {
+.quest-node--pir {
   padding-bottom: 10px;
 }
 
@@ -1601,6 +1599,26 @@
 .quest-art--board {
   width: 320px;
   height: 249px;
+}
+
+.quest-art--motor {
+  width: 110px;
+  height: 105px;
+}
+
+.quest-art--ultrasonic {
+  width: 160px;
+  height: 89px;
+}
+
+/* Driven by the live `sensor:proximity` event — a hand near the real HC-SR04
+   prop in AR glows the sensor here too, on top of whatever it triggers. */
+.quest-art--ultrasonic .quest-art__svg {
+  transition: filter 80ms linear;
+}
+
+.quest-art--ultrasonic.quest-art--active .quest-art__svg {
+  filter: drop-shadow(0 0 6px #22c55e) drop-shadow(0 0 16px #22c55e) brightness(1.3) saturate(1.3);
 }
 
 .quest-handle {

@@ -3,6 +3,8 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import ledArt from './assets/led-5mm.svg?raw';
 import resistorArt from './assets/resistor.svg?raw';
 import arduinoArt from './assets/arduino-uno-r3.svg?raw';
+import motorArt from './assets/dc-motor.svg?raw';
+import ultrasonicArt from './assets/ultrasonic.svg?raw';
 import { ARDUINO_HANDLES } from './arduinoPins.js';
 
 export type QuestPartNodeData = {
@@ -12,6 +14,8 @@ export type QuestPartNodeData = {
   simPattern?: 'on' | 'off' | 'blink' | 'pattern' | undefined;
   simOnMs?: number | undefined;
   simOffMs?: number | undefined;
+  /** Set on ultrasonic nodes only, from the live `sensor:proximity` event — see QuestMirrorCanvas. */
+  sensorActive?: boolean | undefined;
 };
 
 /**
@@ -127,36 +131,36 @@ function PirNode({ label }: { label: string }) {
 
 function MotorNode({ label }: { label: string }) {
   return (
-    <div className="quest-node quest-node--motor">
-      <span className="quest-node__id">{label}</span>
-      <span className="quest-node__kind">motor</span>
-      <Dot id="positive" x={0.3} y={1} />
-      <Dot id="negative" x={0.7} y={1} />
+    <div className="quest-art quest-art--motor">
+      <span className="quest-art__label">{label}</span>
+      <span className="quest-art__svg" aria-hidden="true" dangerouslySetInnerHTML={{ __html: motorArt }} />
+      <Dot id="positive" x={0.38} y={0.94} />
+      <Dot id="negative" x={0.62} y={0.94} />
     </div>
   );
 }
 
-function UltrasonicNode({ label }: { label: string }) {
+function UltrasonicNode({ label, sensorActive }: { label: string; sensorActive?: boolean | undefined }) {
   return (
-    <div className="quest-node quest-node--ultrasonic">
-      <span className="quest-node__id">{label}</span>
-      <span className="quest-node__kind">ultrasonic</span>
-      <Dot id="vcc" x={0.15} y={1} />
-      <Dot id="trig" x={0.4} y={1} />
-      <Dot id="echo" x={0.65} y={1} />
-      <Dot id="gnd" x={0.9} y={1} />
+    <div className={`quest-art quest-art--ultrasonic${sensorActive ? ' quest-art--active' : ''}`}>
+      <span className="quest-art__label">{label}</span>
+      <span className="quest-art__svg" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ultrasonicArt }} />
+      <Dot id="vcc" x={0.12} y={0.95} />
+      <Dot id="trig" x={0.38} y={0.95} />
+      <Dot id="echo" x={0.62} y={0.95} />
+      <Dot id="gnd" x={0.88} y={0.95} />
     </div>
   );
 }
 
 export function QuestPartNode({ data }: NodeProps) {
-  const { label, kind, simPattern, simOnMs, simOffMs } = data as unknown as QuestPartNodeData;
+  const { label, kind, simPattern, simOnMs, simOffMs, sensorActive } = data as unknown as QuestPartNodeData;
   if (kind === 'led') return <LedNode label={label} kind={kind} simPattern={simPattern} simOnMs={simOnMs} simOffMs={simOffMs} />;
   if (kind === 'resistor') return <ResistorNode label={label} />;
   if (kind === 'board') return <BoardNode label={label} />;
   if (kind === 'pir') return <PirNode label={label} />;
   if (kind === 'motor') return <MotorNode label={label} />;
-  if (kind === 'ultrasonic') return <UltrasonicNode label={label} />;
+  if (kind === 'ultrasonic') return <UltrasonicNode label={label} sensorActive={sensorActive} />;
   return (
     <div className="quest-node">
       <span className="quest-node__id">{label}</span>

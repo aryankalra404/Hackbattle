@@ -172,6 +172,27 @@ io.on('connection', (socket) => {
     reasoningDebouncer.schedule(sessionId, revision);
   });
 
+  // A live, continuous signal from UltrasonicProximityController.cs — a hand
+  // near the sensor prop. Deliberately not persisted into `sessions` and
+  // never triggers the LLM reasoning pipeline: it's a fast demo trigger, not
+  // a circuit-topology change.
+  socket.on('sensor:proximity', (payload = {}) => {
+    const sessionId = cleanSessionId(payload.sessionId);
+    if (!sessionId) return;
+
+    if (socket.data.sessionId !== sessionId) {
+      if (socket.data.sessionId) socket.leave(socket.data.sessionId);
+      socket.data.sessionId = sessionId;
+      socket.join(sessionId);
+    }
+
+    io.to(sessionId).emit('sensor:proximity', {
+      sessionId,
+      near: !!payload.near,
+      ledStates: payload.ledStates && typeof payload.ledStates === 'object' ? payload.ledStates : {}
+    });
+  });
+
   socket.on('circuit:intent', (payload = {}) => {
     const sessionId = cleanSessionId(payload.sessionId);
     if (!sessionId) return;

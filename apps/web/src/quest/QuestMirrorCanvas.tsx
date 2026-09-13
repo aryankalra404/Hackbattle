@@ -43,7 +43,7 @@ function resolvePin(
 }
 
 function MirrorInner() {
-  const { circuit, connected, simulateResult, sessionId } = useQuestBridge();
+  const { circuit, connected, simulateResult, sessionId, proximityNear, proximityLedStates } = useQuestBridge();
   const components = circuit?.components ?? [];
   const wires = circuit?.wires ?? [];
   const board = circuit?.board;
@@ -66,8 +66,13 @@ function MirrorInner() {
     if (simulateResult?.stage === 'simulate') {
       for (const led of simulateResult.leds) byId.set(led.ledId, led);
     }
+    // Live proximity overrides whatever the last compiled sketch predicted —
+    // it's a real-time sensor signal, not a static simulation result.
+    for (const [ledId, lit] of Object.entries(proximityLedStates)) {
+      byId.set(ledId, { pattern: lit ? 'on' : 'off' });
+    }
     return byId;
-  }, [simulateResult]);
+  }, [simulateResult, proximityLedStates]);
 
   const nodes: Node[] = useMemo(() => {
     const list: Node[] = components.map((component) => {
@@ -85,6 +90,7 @@ function MirrorInner() {
           simPattern: sim?.pattern,
           simOnMs: sim?.onMs,
           simOffMs: sim?.offMs,
+          sensorActive: component.type === 'ultrasonic' ? proximityNear : undefined,
         },
         draggable: false,
         selectable: false,
@@ -105,7 +111,7 @@ function MirrorInner() {
       });
     }
     return list;
-  }, [components, board, wires, originX, originZ, simulatedLeds]);
+  }, [components, board, wires, originX, originZ, simulatedLeds, proximityNear]);
 
   const edges: Edge[] = useMemo(
     () =>
