@@ -77,7 +77,7 @@ async function runReasoningForSession(sessionId, revision) {
     result = pipeline.result;
   } catch (error) {
     console.warn(`[pipeline] failed for ${sessionId}; using rule fallback: ${error.message}`);
-    const fallback = diagnoseCircuit(circuit);
+    const fallback = diagnoseCircuit(circuit, intent);
     result = {
       ...fallback,
       confidence: null,

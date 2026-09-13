@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { diagnoseCircuit } = require('../rules');
-const { findPirFaults } = require('../rules/pirWiring');
+const { findWiringFaults } = require('../rules/genericPinRoles');
 
 // This matches QuestCircuitBridge.BuildCircuit(): component terminal fields
 // hold PinPoint.pinId values and actual physical links are { from, to } wires.
@@ -47,7 +47,7 @@ const pirOnWrongPins = {
     { from: 'GND', to: 'PIR_GND' }
   ]
 };
-const pirFaults = findPirFaults(pirOnWrongPins, 'PIR should be connected to D13');
+const pirFaults = findWiringFaults(pirOnWrongPins, 'PIR should be connected to D13');
 assert.equal(pirFaults.length, 1);
 assert.match(pirFaults[0].issue, /5V/);
 assert.match(pirFaults[0].issue, /D13/);
@@ -61,7 +61,7 @@ const validPir = {
     { from: 'GND', to: 'PIR_GND' }
   ]
 };
-assert.deepEqual(findPirFaults(validPir, 'PIR should be connected to D13'), []);
+assert.deepEqual(findWiringFaults(validPir, 'PIR should be connected to D13'), []);
 assert.equal(diagnoseCircuit(validPir).ok, true);
 
 console.log('Rule regression checks passed.');

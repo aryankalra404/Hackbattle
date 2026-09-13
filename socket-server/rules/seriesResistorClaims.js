@@ -1,3 +1,5 @@
+const { COMPONENT_SPECS } = require('./componentSpecs');
+
 function normalizePinId(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
@@ -29,37 +31,41 @@ function mentionsTerminal(issueText, pinId, word) {
 }
 
 /**
- * Drops an LED "missing series resistor" fault only when we can identify
- * exactly which terminal (anode or cathode) it accuses, and that specific
- * terminal is directly wired to a resistor terminal — deterministic proof a
- * resistor really is there. Exists to catch a real, repeatable LLM failure
- * mode: gpt-4o-mini sometimes claims an LED's anode is "wired directly to
- * 5V with no series resistor" even when its own trace shows a resistor in
- * between, apparently confusing a nearby unrelated component's 5V/GND pin
- * (e.g. a PIR's VCC) with the LED's own source.
+ * Drops a "missing series resistor" fault only when we can identify exactly
+ * which terminal it accuses, that terminal belongs to a component type
+ * whose spec (componentSpecs.js) actually requires one, and that specific
+ * terminal is directly wired to a resistor terminal — deterministic proof
+ * a resistor really is there. Applies to any `seriesResistorRequired` pin
+ * (currently just the LED anode), not one hardcoded component type.
  *
- * Deliberately conservative: if the accused terminal can't be identified, or
- * both terminals are mentioned, the fault is left alone rather than risk
- * silently discarding a real one (e.g. a reversed LED, where the OTHER
- * terminal legitimately touching a resistor must not excuse this one).
+ * Exists to catch a real, repeatable LLM failure mode: gpt-4o-mini
+ * sometimes claims a terminal is "wired directly to 5V with no series
+ * resistor" even when its own trace shows a resistor in between, apparently
+ * confusing a nearby unrelated component's 5V/GND pin (e.g. a PIR's VCC)
+ * with this component's own source.
+ *
+ * Deliberately conservative: if the accused terminal can't be identified,
+ * the fault is left alone rather than risk silently discarding a real one
+ * (e.g. a reversed component, where the OTHER terminal legitimately
+ * touching a resistor must not excuse this one).
  */
 function discardFalseMissingResistorClaims(circuit, diagnosis) {
   const components = Array.isArray(circuit?.components) ? circuit.components : [];
   const resistorTerminals = buildResistorTerminals(circuit);
 
   const survivingFaults = diagnosis.faults.filter((fault) => {
-    if (resistorTerminals.size === 0 || !/no series resistor/i.test(fault.issue)) return true;
+    if (resistorTerminals.size === 0 || !/no series resistor|without a series current-limiting resistor/i.test(fault.issue)) return true;
     const component = components.find((candidate) => candidate.id === fault.componentId);
-    if (!component || component.type !== 'led') return true;
+    const spec = component && COMPONENT_SPECS[component.type];
+    if (!spec) return true;
 
-    const anode = normalizePinId(component.anode);
-    const cathode = normalizePinId(component.cathode);
-    const mentionsAnode = mentionsTerminal(fault.issue, anode, 'anode');
-    const mentionsCathode = mentionsTerminal(fault.issue, cathode, 'cathode');
+    const resistorPins = spec.pins.filter((pin) => pin.role === 'polarized' && pin.seriesResistorRequired);
+    if (resistorPins.length === 0) return true;
 
-    if (mentionsAnode && !mentionsCathode) return !terminalTouchesResistor(circuit, anode, resistorTerminals);
-    if (mentionsCathode && !mentionsAnode) return !terminalTouchesResistor(circuit, cathode, resistorTerminals);
-    return true;
+    const mentioned = resistorPins.filter((pin) => mentionsTerminal(fault.issue, normalizePinId(component[pin.field]), pin.field));
+    if (mentioned.length !== 1) return true; // ambiguous or unidentified accusation — leave it alone
+
+    return !terminalTouchesResistor(circuit, normalizePinId(component[mentioned[0].field]), resistorTerminals);
   });
 
   if (survivingFaults.length === diagnosis.faults.length) return diagnosis;
